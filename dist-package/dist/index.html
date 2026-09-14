@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="th">
+
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>Toast POS</title>
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#c2703d" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script type="module" crossorigin src="/assets/index-ByHtuNNd.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CvGMjIw_.css">
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script>
+      (function () {
+        function ready(fn) {
+          if (document.readyState !== "loading") fn();
+          else document.addEventListener("DOMContentLoaded", fn);
+        }
+        ready(function () {
+          var panel = document.createElement("div");
+          panel.style.cssText =
+            "position:fixed;bottom:16px;right:16px;z-index:99999;width:300px;background:#fff;border:1px solid #ddd;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.15);padding:12px;font-family:'Noto Sans Thai',sans-serif;font-size:14px;";
+          panel.innerHTML =
+            '<div style="font-weight:600;margin-bottom:8px;">🤖 ผู้ช่วย AI แยกออเดอร์</div>' +
+            '<textarea id="aiOrderText" placeholder="วางประโยคลูกค้า เช่น ขอโทสดั้งเดิม ใส่คอนเฟลกกับน้ำผึ้ง" style="width:100%;height:60px;padding:6px;border:1px solid #ccc;border-radius:8px;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>' +
+            '<button id="aiOrderBtn" style="margin-top:6px;width:100%;padding:8px;background:#c2703d;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;">แยกออเดอร์ด้วย AI</button>' +
+            '<div id="aiOrderResult" style="margin-top:8px;white-space:pre-wrap;line-height:1.5;"></div>';
+          document.body.appendChild(panel);
+
+          document.getElementById("aiOrderBtn").addEventListener("click", function () {
+            var text = document.getElementById("aiOrderText").value.trim();
+            var resultEl = document.getElementById("aiOrderResult");
+            if (!text) {
+              resultEl.textContent = "พิมพ์ข้อความก่อนนะครับ";
+              return;
+            }
+            resultEl.textContent = "กำลังแยก...";
+            fetch("/api/trpc/ai.parseOrderText", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ json: { text: text } })
+            })
+              .then(function (r) {
+                return r.json();
+              })
+              .then(function (d) {
+                var data = d && d.result && d.result.data && d.result.data.json;
+                if (!data) {
+                  resultEl.textContent = "ไม่มีผลลัพธ์";
+                  return;
+                }
+                if (data.error) {
+                  resultEl.textContent = "ข้อผิดพลาด: " + data.error;
+                  return;
+                }
+                var lines = [];
+                lines.push("ขนมปัง: " + (data.breadType || "ไม่พบ"));
+                lines.push(
+                  "ท็อปปิ้ง: " +
+                    (data.toppings && data.toppings.length ? data.toppings.join(", ") : "ไม่พบ")
+                );
+                lines.push("ความมั่นใจ: " + Math.round((data.confidence || 0) * 100) + "%");
+                resultEl.textContent = lines.join("\n");
+              })
+              .catch(function (err) {
+                resultEl.textContent = "เชื่อมต่อไม่สำเร็จ: " + err;
+              });
+          });
+        });
+      })();
+    </script>
+  </body>
+
+</html>
