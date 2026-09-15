@@ -1,0 +1,20 @@
+{
+  "name": "toast-pos",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-14",
+  "assets": {
+    "directory": "./dist-package/dist",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "toast-pos",
+      "database_id": "afb6b062-80b4-4ed1-8449-6bfb18d46085"
+    }
+  ]
+}
