@@ -17435,7 +17435,24 @@ function createCloudflareRouter(env) {
       const safeBread = parsed && breadNames.includes(parsed.breadType) ? parsed.breadType : null;
       const safeToppings = Array.isArray(parsed?.toppings) ? parsed.toppings.filter((topping) => toppingNames.includes(topping)) : [];
       const confidence = typeof parsed?.confidence === "number" ? Math.max(0, Math.min(1, parsed.confidence)) : 0.5;
-      return { breadType: safeBread, toppings: safeToppings, confidence };
+      const aliasRows = await customOptions.aliases.list();
+      const evidenceMap = {};
+      for (const opt of options) {
+        evidenceMap[opt.name] = [opt.name];
+      }
+      for (const row of aliasRows) {
+        const opt = options.find((o) => o.id === row.customOptionId);
+        if (opt) evidenceMap[opt.name].push(row.alias);
+      }
+      const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, "");
+      const normText = norm(text);
+      const hasEvidence = (name) => {
+        const words = evidenceMap[name] || [name];
+        return words.some((w) => normText.includes(norm(w)));
+      };
+      const verifiedBread = safeBread && hasEvidence(safeBread) ? safeBread : null;
+      const verifiedToppings = safeToppings.filter((topping) => hasEvidence(topping));
+      return { breadType: verifiedBread, toppings: verifiedToppings, confidence };
     }, "parseOrderText")
   };
   return router({
