@@ -1,3 +1,4 @@
+import { verifyCustomSuggestions } from "./custom-evidence.mjs";
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -17775,6 +17776,7 @@ var publicProcedure = trpc.procedure;
 var menuInput = external_exports.object({ name: external_exports.string().trim().min(1).max(160), category: external_exports.enum(["shop", "other"]), price: external_exports.number().int().min(0) });
 var deliveryInput = external_exports.object({ name: external_exports.string().trim().min(1).max(160), fee: external_exports.number().int().min(0).max(1e3) });
 var customInput = external_exports.object({ type: external_exports.enum(["bread", "topping"]), name: external_exports.string().trim().min(1).max(160), description: external_exports.string().trim().max(160).optional(), price: external_exports.number().int().min(0).max(1e3) });
+var drinkExtraInput = external_exports.object({ name: external_exports.string().trim().min(1).max(160), price: external_exports.number().int().min(0).max(1e3) });
 var customAliasInput = external_exports.object({ customOptionId: external_exports.number().int().positive(), alias: external_exports.string().trim().min(1).max(300) });
 var customAliasUpdateInput = external_exports.object({ id: external_exports.number().int().positive(), alias: external_exports.string().trim().min(1).max(160) });
 var orderItemInput = external_exports.object({ menuItemId: external_exports.number().int().positive().optional(), name: external_exports.string().trim().min(1).max(240), category: external_exports.enum(["shop", "custom", "other"]), breadType: external_exports.string().max(160).optional(), toppingsJson: external_exports.string().max(1e3).optional(), sweetness: external_exports.enum(["0%", "25%", "50%", "75%", "100%"]).nullable().optional(), unitPrice: external_exports.number().int().min(0), quantity: external_exports.number().int().min(1).max(99) });
@@ -17859,6 +17861,14 @@ function createCloudflareRouter(env) {
         await db.prepare("DELETE FROM customOptionAliases WHERE customOptionId = ?").bind(customOptionId).run();
       }, "removeGroup")
     }
+  };
+  // Existing deployments have no migrations directory; create this independent table on first use.
+  const ensureDrinkExtras = () => db.prepare("CREATE TABLE IF NOT EXISTS drinkExtras (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, price INTEGER NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 99)").run();
+  const drinkExtras = {
+    list: async () => { await ensureDrinkExtras(); return rows(db, "SELECT id, name, price FROM drinkExtras ORDER BY sortOrder, id"); },
+    create: async (input) => { await ensureDrinkExtras(); return idFrom(await db.prepare("INSERT INTO drinkExtras (name, price) VALUES (?, ?)").bind(input.name, input.price).run()); },
+    update: async (id, input) => { await ensureDrinkExtras(); await db.prepare("UPDATE drinkExtras SET name = ?, price = ? WHERE id = ?").bind(input.name, input.price, id).run(); },
+    remove: async (id) => { await ensureDrinkExtras(); await db.prepare("DELETE FROM drinkExtras WHERE id = ?").bind(id).run(); }
   };
   const promotions = {
     list: /* @__PURE__ */ __name22(async () => (await rows(db, "SELECT id, name, type, enabled, minSpend, firstMenuId, secondMenuId, secondCategory, discountAmount, qualifyingCategory, qualifyingCategories, targetCategory FROM promotions ORDER BY id")).map(withPromotion), "list"),
@@ -17987,6 +17997,7 @@ function createCloudflareRouter(env) {
       const options = await customOptions.list();
       const breadNames = options.filter((option) => option.type === "bread").map((option) => option.name);
       const toppingNames = options.filter((option) => option.type === "topping").map((option) => option.name);
+      const aliasRows = await customOptions.aliases.list();
       if (!env.AI) {
         return { breadType: null, toppings: [], confidence: 0, error: "\u0E22\u0E31\u0E07\u0E44\u0E21\u0E48\u0E44\u0E14\u0E49\u0E15\u0E31\u0E49\u0E07\u0E04\u0E48\u0E32 Workers AI binding \u0E0A\u0E37\u0E48\u0E2D AI \u0E43\u0E19 Settings" };
       }
@@ -18003,7 +18014,8 @@ function createCloudflareRouter(env) {
       try {
         result = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
           messages: [
-            { role: "system", content: "\u0E41\u0E22\u0E01\u0E23\u0E32\u0E22\u0E25\u0E30\u0E40\u0E2D\u0E35\u0E22\u0E14\u0E2D\u0E2D\u0E40\u0E14\u0E2D\u0E23\u0E4C\u0E02\u0E19\u0E21\u0E1B\u0E31\u0E07\u0E1B\u0E34\u0E49\u0E07\u0E08\u0E32\u0E01\u0E02\u0E49\u0E2D\u0E04\u0E27\u0E32\u0E21\u0E02\u0E2D\u0E07\u0E25\u0E39\u0E01\u0E04\u0E49\u0E32 \u0E0B\u0E36\u0E48\u0E07\u0E2D\u0E32\u0E08\u0E21\u0E35\u0E20\u0E32\u0E29\u0E32\u0E44\u0E17\u0E22 \u0E20\u0E32\u0E29\u0E32\u0E2D\u0E31\u0E07\u0E01\u0E24\u0E29 \u0E2B\u0E23\u0E37\u0E2D\u0E04\u0E33\u0E17\u0E31\u0E1A\u0E28\u0E31\u0E1E\u0E17\u0E4C\u0E1B\u0E19\u0E01\u0E31\u0E19 \u0E15\u0E2D\u0E1A\u0E40\u0E1B\u0E47\u0E19 JSON \u0E40\u0E17\u0E48\u0E32\u0E19\u0E31\u0E49\u0E19 \u0E0A\u0E19\u0E34\u0E14\u0E02\u0E19\u0E21\u0E1B\u0E31\u0E07\u0E15\u0E49\u0E2D\u0E07\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E08\u0E32\u0E01\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E19\u0E35\u0E49\u0E40\u0E17\u0E48\u0E32\u0E19\u0E31\u0E49\u0E19: " + breadNames.join(", ") + " \u0E16\u0E49\u0E32\u0E44\u0E21\u0E48\u0E1E\u0E1A\u0E2B\u0E23\u0E37\u0E2D\u0E44\u0E21\u0E48\u0E21\u0E31\u0E48\u0E19\u0E43\u0E08\u0E43\u0E2B\u0E49\u0E15\u0E2D\u0E1A \u0E44\u0E21\u0E48\u0E23\u0E30\u0E1A\u0E38 \u0E17\u0E47\u0E2D\u0E1B\u0E1B\u0E34\u0E49\u0E07\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E44\u0E14\u0E49\u0E2B\u0E25\u0E32\u0E22\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E08\u0E32\u0E01\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E19\u0E35\u0E49\u0E40\u0E17\u0E48\u0E32\u0E19\u0E31\u0E49\u0E19: " + toppingNames.join(", ") + ' \u0E2B\u0E32\u0E01\u0E04\u0E33\u0E43\u0E19\u0E02\u0E49\u0E2D\u0E04\u0E27\u0E32\u0E21\u0E40\u0E1B\u0E47\u0E19\u0E20\u0E32\u0E29\u0E32\u0E2D\u0E31\u0E07\u0E01\u0E24\u0E29\u0E2B\u0E23\u0E37\u0E2D\u0E17\u0E31\u0E1A\u0E28\u0E31\u0E1E\u0E17\u0E4C \u0E43\u0E2B\u0E49\u0E40\u0E17\u0E35\u0E22\u0E1A\u0E40\u0E2A\u0E35\u0E22\u0E07\u0E41\u0E25\u0E30\u0E04\u0E27\u0E32\u0E21\u0E2B\u0E21\u0E32\u0E22\u0E01\u0E31\u0E1A\u0E0A\u0E37\u0E48\u0E2D\u0E43\u0E19\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E2D\u0E22\u0E48\u0E32\u0E07\u0E23\u0E30\u0E21\u0E31\u0E14\u0E23\u0E30\u0E27\u0E31\u0E07 \u0E40\u0E25\u0E37\u0E2D\u0E01\u0E40\u0E09\u0E1E\u0E32\u0E30\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E17\u0E35\u0E48\u0E21\u0E31\u0E48\u0E19\u0E43\u0E08\u0E08\u0E23\u0E34\u0E07 \u0E46 \u0E40\u0E17\u0E48\u0E32\u0E19\u0E31\u0E49\u0E19 \u0E2B\u0E49\u0E32\u0E21\u0E40\u0E14\u0E32\u0E43\u0E2A\u0E48\u0E0A\u0E37\u0E48\u0E2D\u0E17\u0E35\u0E48\u0E44\u0E21\u0E48\u0E41\u0E19\u0E48\u0E43\u0E08\u0E2B\u0E23\u0E37\u0E2D\u0E44\u0E21\u0E48\u0E21\u0E35\u0E43\u0E19\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E40\u0E14\u0E47\u0E14\u0E02\u0E32\u0E14 \u0E01\u0E23\u0E38\u0E13\u0E32\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E0A\u0E37\u0E48\u0E2D\u0E40\u0E21\u0E19\u0E39\u0E2B\u0E23\u0E37\u0E2D\u0E17\u0E47\u0E2D\u0E1B\u0E1B\u0E34\u0E49\u0E07\u0E17\u0E35\u0E48\u0E15\u0E23\u0E07\u0E41\u0E25\u0E30\u0E40\u0E09\u0E1E\u0E32\u0E30\u0E40\u0E08\u0E32\u0E30\u0E08\u0E07\u0E17\u0E35\u0E48\u0E2A\u0E38\u0E14\u0E40\u0E17\u0E48\u0E32\u0E19\u0E31\u0E49\u0E19 \u0E16\u0E49\u0E32\u0E04\u0E33\u0E2B\u0E19\u0E36\u0E48\u0E07\u0E40\u0E1B\u0E47\u0E19\u0E2A\u0E48\u0E27\u0E19\u0E2B\u0E19\u0E36\u0E48\u0E07\u0E02\u0E2D\u0E07\u0E0A\u0E37\u0E48\u0E2D\u0E17\u0E35\u0E48\u0E22\u0E32\u0E27\u0E01\u0E27\u0E48\u0E32 \u0E2B\u0E49\u0E32\u0E21\u0E19\u0E33\u0E04\u0E33\u0E19\u0E31\u0E49\u0E19\u0E44\u0E1B\u0E2A\u0E23\u0E49\u0E32\u0E07\u0E40\u0E1B\u0E47\u0E19\u0E15\u0E31\u0E27\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E2D\u0E37\u0E48\u0E19\u0E0B\u0E49\u0E33\u0E2D\u0E35\u0E01 \u0E40\u0E0A\u0E48\u0E19 "\u0E0A\u0E47\u0E2D\u0E01\u0E42\u0E01\u0E41\u0E25\u0E15\u0E2E\u0E32\u0E40\u0E0B\u0E25\u0E19\u0E31\u0E17" \u0E01\u0E31\u0E1A "\u0E0B\u0E2D\u0E2A\u0E0A\u0E47\u0E2D\u0E01\u0E42\u0E01\u0E41\u0E25\u0E15" \u0E40\u0E1B\u0E47\u0E19\u0E04\u0E19\u0E25\u0E30\u0E23\u0E32\u0E22\u0E01\u0E32\u0E23\u0E01\u0E31\u0E19 \u0E01\u0E32\u0E23\u0E1E\u0E1A\u0E04\u0E33\u0E27\u0E48\u0E32 "\u0E0B\u0E2D\u0E2A" \u0E2D\u0E22\u0E39\u0E48\u0E17\u0E35\u0E48\u0E2D\u0E37\u0E48\u0E19\u0E43\u0E19\u0E1B\u0E23\u0E30\u0E42\u0E22\u0E04 \u0E44\u0E21\u0E48\u0E44\u0E14\u0E49\u0E41\u0E1B\u0E25\u0E27\u0E48\u0E32\u0E04\u0E33\u0E27\u0E48\u0E32 "\u0E0A\u0E47\u0E2D\u0E01\u0E42\u0E01\u0E41\u0E25\u0E15" \u0E17\u0E35\u0E48\u0E2D\u0E22\u0E39\u0E48\u0E01\u0E48\u0E2D\u0E19\u0E2B\u0E19\u0E49\u0E32\u0E19\u0E31\u0E49\u0E19\u0E40\u0E1B\u0E47\u0E19\u0E0B\u0E2D\u0E2A\u0E0A\u0E47\u0E2D\u0E01\u0E42\u0E01\u0E41\u0E25\u0E15 \u0E43\u0E2B\u0E49\u0E40\u0E25\u0E37\u0E2D\u0E01 "\u0E0B\u0E2D\u0E2A\u0E0A\u0E47\u0E2D\u0E01\u0E42\u0E01\u0E41\u0E25\u0E15" \u0E40\u0E09\u0E1E\u0E32\u0E30\u0E40\u0E21\u0E37\u0E48\u0E2D\u0E02\u0E49\u0E2D\u0E04\u0E27\u0E32\u0E21\u0E2A\u0E37\u0E48\u0E2D\u0E42\u0E14\u0E22\u0E15\u0E23\u0E07\u0E27\u0E48\u0E32\u0E15\u0E49\u0E2D\u0E07\u0E01\u0E32\u0E23\u0E0B\u0E2D\u0E2A\u0E0A\u0E47\u0E2D\u0E01\u0E42\u0E01\u0E41\u0E25\u0E15\u0E40\u0E17\u0E48\u0E32\u0E19\u0E31\u0E49\u0E19 \u0E40\u0E0A\u0E48\u0E19 "\u0E0B\u0E2D\u0E2A\u0E0A\u0E47\u0E2D\u0E01\u0E42\u0E01\u0E41\u0E25\u0E15" "\u0E0B\u0E2D\u0E2A\u0E0A\u0E47\u0E2D\u0E01" \u0E2B\u0E23\u0E37\u0E2D "\u0E23\u0E32\u0E14\u0E0A\u0E47\u0E2D\u0E01\u0E42\u0E01\u0E41\u0E25\u0E15" \u0E2B\u0E49\u0E32\u0E21\u0E40\u0E14\u0E32\u0E15\u0E31\u0E27\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E17\u0E35\u0E48\u0E44\u0E21\u0E48\u0E21\u0E35\u0E2B\u0E25\u0E31\u0E01\u0E10\u0E32\u0E19\u0E0A\u0E31\u0E14\u0E40\u0E08\u0E19\u0E43\u0E19\u0E02\u0E49\u0E2D\u0E04\u0E27\u0E32\u0E21\u0E40\u0E14\u0E47\u0E14\u0E02\u0E32\u0E14 ถ้าข้อความมีคำว่า "ช็อค" หรือ "ช็อกโกแลต" เพียงลำพัง (ไม่มีคำว่า "ฮาเซลนัท" ร่วมด้วย) ให้ตีความว่าหมายถึง "ซอสช็อกโกแลต" แต่ถ้ามีคำว่า "ฮาเซลนัท" ปรากฏอยู่ในข้อความเดียวกันด้วย ให้ตีความว่าหมายถึง "ช็อคโกแลตฮาเซลนัท" แทนเท่านั้น ห้ามเลือกทั้งสองอย่างพร้อมกัน คำว่า "สตอ" หรือ "เบอรี่" ที่ปรากฏตามลำพังสั้น ๆ โดยไม่มีบริบทชัดเจน ไม่ถือเป็นหลักฐานเพียงพอสำหรับ "ซอสสตอเบอรี่" ต้องมีคำที่สื่อถึงสตรอเบอร์รี่ชัดเจนกว่านี้จึงจะเลือกได้ ถ้าข้อความมีคำคล้าย "โทส" "โทด" หรือคำสะกดใกล้เคียงที่สื่อถึงขนมปังปิ้งแต่ไม่สามารถระบุชนิดที่ชัดเจนกว่านี้ได้ ให้ใช้ "โทสดั้งเดิม" เป็นค่าเริ่มต้น และคำว่า "เกล็ดโอวัลติน" หมายถึงรายการเดียวกับ "โอวัลตินเฟค"' },
+            { role: "system", content: "แยกข้อความสั่งขนมปังปิ้งเป็นชนิดขนมปังและท็อปปิ้ง ตอบ JSON ตาม schema เท่านั้น เลือกชื่อจากรายการที่ให้เท่านั้น ไม่เพิ่มรายการที่ไม่ได้สั่งหรือถูกปฏิเสธ เช่น ไม่เอา/งด ถ้าไม่แน่ใจให้ใช้ breadType=ไม่ระบุ และ toppings=[] ระวังชื่อที่ซ้อนกัน: คำสั้นที่เป็นส่วนหนึ่งของชื่อยาวไม่ได้หมายถึงสองรายการ เลือกชื่อที่เจาะจงที่สุดตามข้อความ รายการขนมปัง: " + JSON.stringify(breadNames) + " รายการท็อปปิ้ง: " + JSON.stringify(toppingNames) },
+            { role: "system", content: "ชื่อเรียกย่อที่ร้านกำหนด (ใช้จับคู่กับรายการที่ระบุเท่านั้น): " + JSON.stringify(aliasRows.map((alias) => ({ name: options.find((option) => option.id === alias.customOptionId)?.name, alias: alias.alias })).filter((item) => item.name)) },
             { role: "user", content: text }
           ],
           response_format: { type: "json_schema", json_schema: schema }
@@ -18023,49 +18035,9 @@ function createCloudflareRouter(env) {
       const safeBread = parsed && breadNames.includes(parsed.breadType) ? parsed.breadType : null;
       const safeToppings = Array.isArray(parsed?.toppings) ? parsed.toppings.filter((topping) => toppingNames.includes(topping)) : [];
       const confidence = typeof parsed?.confidence === "number" ? Math.max(0, Math.min(1, parsed.confidence)) : 0.5;
-      const aliasRows = await customOptions.aliases.list();
-      const evidenceMap = {};
-      for (const opt of options) {
-        evidenceMap[opt.name] = [opt.name];
-      }
-      for (const row of aliasRows) {
-        const opt = options.find((o) => o.id === row.customOptionId);
-        if (opt) evidenceMap[opt.name].push(row.alias);
-      }
-      const norm = /* @__PURE__ */ __name((s) => (s || "").toLowerCase().replace(/[\s+\-_\/,.'"“”]+/g, ""), "norm");
-      const normText = norm(text);
-      const levenshtein = /* @__PURE__ */ __name((a, b) => {
-        const row = Array.from({ length: b.length + 1 }, (_, i) => i);
-        for (let i = 1; i <= a.length; i += 1) {
-          let prev = row[0];
-          row[0] = i;
-          for (let j = 1; j <= b.length; j += 1) {
-            const temp = row[j];
-            row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
-            prev = temp;
-          }
-        }
-        return row[b.length];
-      }, "levenshtein");
-      const fuzzyContains = /* @__PURE__ */ __name((haystack, needle) => {
-        const n = norm(needle);
-        if (n.length < 3) return haystack.includes(n);
-        if (haystack.includes(n)) return true;
-        const threshold = n.length >= 5 ? 2 : 1;
-        for (let size = Math.max(3, n.length - 1); size <= n.length + 1; size += 1) {
-          for (let start = 0; start + size <= haystack.length; start += 1) {
-            if (levenshtein(haystack.slice(start, start + size), n) <= threshold) return true;
-          }
-        }
-        return false;
-      }, "fuzzyContains");
-      const hasEvidence = /* @__PURE__ */ __name((name) => {
-        const words = evidenceMap[name] || [name];
-        return words.some((w) => fuzzyContains(normText, w));
-      }, "hasEvidence");
-      const verifiedBread = safeBread && hasEvidence(safeBread) ? safeBread : null;
-      const verifiedToppings = safeToppings.filter((topping) => hasEvidence(topping));
-      return { breadType: verifiedBread, toppings: verifiedToppings, confidence };
+      const verified = verifyCustomSuggestions(text, options, aliasRows, safeBread, safeToppings);
+      const changed = verified.breadType !== safeBread || verified.toppings.length !== safeToppings.length;
+      return { ...verified, confidence: changed ? Math.min(confidence, 0.5) : confidence };
     }, "parseOrderText")
   };
   return router({
@@ -18078,6 +18050,7 @@ function createCloudflareRouter(env) {
       return promotions.update(id, values);
     }), delete: publicProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => promotions.remove(input.id)) }),
     customOptions: router({ list: publicProcedure.query(customOptions.list), create: publicProcedure.input(customInput).mutation(({ input }) => customOptions.create(input)), update: publicProcedure.input(customInput.extend({ id: external_exports.number().int().positive() })).mutation(({ input }) => customOptions.update(input.id, input)), delete: publicProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => customOptions.remove(input.id)), aliases: router({ list: publicProcedure.query(customOptions.aliases.list), create: publicProcedure.input(customAliasInput).mutation(({ input }) => customOptions.aliases.create(input)), update: publicProcedure.input(customAliasUpdateInput).mutation(({ input }) => customOptions.aliases.update(input.id, input)), replace: publicProcedure.input(customAliasInput).mutation(({ input }) => customOptions.aliases.replace(input.customOptionId, input.alias)), delete: publicProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => customOptions.aliases.remove(input.id)), deleteGroup: publicProcedure.input(external_exports.object({ customOptionId: external_exports.number().int().positive() })).mutation(({ input }) => customOptions.aliases.removeGroup(input.customOptionId)) }) }),
+    drinkExtras: router({ list: publicProcedure.query(drinkExtras.list), create: publicProcedure.input(drinkExtraInput).mutation(({ input }) => drinkExtras.create(input)), update: publicProcedure.input(drinkExtraInput.extend({ id: external_exports.number().int().positive() })).mutation(({ input }) => drinkExtras.update(input.id, input)), delete: publicProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => drinkExtras.remove(input.id)) }),
     orders: router({ list: publicProcedure.query(orders.list), detail: publicProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).query(({ input }) => orders.detail(input.id)), create: publicProcedure.input(external_exports.object({ items: external_exports.array(orderItemInput).min(1), shippingLabel: external_exports.string().trim().min(1).max(160), shippingFee: external_exports.number().int().min(0).max(1e3), manualDiscount: external_exports.number().int().min(0).max(1e5).optional(), promotionDiscount: external_exports.number().int().min(0).max(1e5).optional() })).mutation(({ input }) => orders.create(input)), delete: publicProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => orders.remove(input.id)) }),
     dashboard: router({ summary: publicProcedure.query(dashboard) }),
     ai: router({ parseOrderText: publicProcedure.input(external_exports.object({ text: external_exports.string().trim().min(1).max(2e3) })).mutation(({ input }) => aiOrderParser.parseOrderText(input.text)) })
