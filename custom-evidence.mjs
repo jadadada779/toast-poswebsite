@@ -1,18 +1,24 @@
 // Check model suggestions against names and shop-specific aliases before adding items.
 const normalize = (value) => String(value ?? "").normalize("NFKC").toLocaleLowerCase().replace(/[\s+\-_/,. '"“”()]+/g, "");
 
-// Common spoken spellings. Only attach these to a matching catalog item, so
-// they cannot create a product that the shop has not configured.
+// Common spoken / misspelled names. Aliases only attach to an item that
+// already exists in the shop catalog, so they cannot invent new products.
 const spokenNames = [
-  { catalog: /^(?:ฮันนี่โทส(?:ต์)?|honeytoast)$/i, aliases: ["ฮันนี่โทส", "ฮันนี่โทสต์", "ฮันนี่โทสท์", "ฮันนี่โท"] },
+  { catalog: /^(?:ฮันนี่โทส(?:ต์)?|honeytoast)$/i, aliases: ["ฮันนี่โทส", "ฮันนี่โทสต์", "ฮันนี่โทสท์", "ฮันนี่โท", "honey toast"] },
+  { catalog: /^(?:เฟรน(?:ช์?)?โทส(?:ต์)?|frenchtoast)$/i, aliases: ["เฟรนโทสต์", "เฟรนโทส", "เฟรนช์โทสต์", "french toast", "frenchtoast"] },
   { catalog: /^(?:คอร์นเฟลก(?:ส์)?|คอนเฟลก|cornflakes?)$/i, aliases: ["คอนเฟค", "คอนเฟลก", "คอร์นเฟค", "คอร์นเฟลก", "คอนเฟล็ก"] },
-  { catalog: /^(?:โกโก้ครั้?น(?:ช์|ซ์)?|cocoacrunch)$/i, aliases: ["โกโก้คัน", "โกโก้ครัน", "โกโก้ครั้น", "โกโก้ครันช์", "โกโก้ครั้นช์", "โกโก้ครันซ์", "โกโก้ครั้นซ์"] },
+  { catalog: /^(?:โกโก้ครั้?น(?:ช์|ซ์)?|cocoacrunch)$/i, aliases: ["โกโก้คัน", "โกโก้ครัน", "โกโก้ครั้น", "โกโก้ครันช์", "โกโก้ครั้นช์", "โกโก้ครันซ์", "โกโก้ครั้นซ์", "cocoa crunch"] },
+  { catalog: /^(?:โอวัลตินเฟลก(?:ส์)?|ovaltineflakes?)$/i, aliases: ["โอวัลตินเฟค", "โอวัลตินเฟลก", "โอวัลตินเฟลค", "ovaltine flakes", "ovaltine flake"] },
+  { catalog: /^(?:ครีมโอ|creamo)$/i, aliases: ["ครีมโอ", "ครีมโอ้", "cream o", "creamo", "crem o", "cremo"] },
+  { catalog: /^(?:ช็อกโกแลตเฮเซลนัท|chocolatehazelnut)$/i, aliases: ["ช็อกโกแลตเฮเซลนัท", "ช็อคโกแลตเฮเซลนัท", "chocolate hazelnut", "chocolet hazelnut", "choc hazelnut", "chocolate hazel nut"] },
+  { catalog: /^(?:ซอสคาราเมล|คาราเมล|caramel(?:sauce)?)$/i, aliases: ["คาราเมล", "ซอสคาราเมล", "caramel", "caramel sauce"] },
   { catalog: /^(?:นมข้นหวาน|นมข้น)$/i, aliases: ["นมข้น", "นมข้นหวาน"] },
   { catalog: /^(?:ซอสช็อกโกแลต|ช็อกโกแลต)$/i, aliases: ["ช็อกโกแลต", "ช็อคโกแลต", "ซอสช็อกโกแลต"] }
 ];
 
 function termsFor(option, aliases) {
-  const spoken = spokenNames.find(({ catalog }) => catalog.test(normalize(option.name)))?.aliases ?? [];
+  const normalizedName = normalize(option.name);
+  const spoken = spokenNames.find(({ catalog }) => catalog.test(normalizedName))?.aliases ?? [];
   return [option.name, ...aliases.filter((alias) => alias.customOptionId === option.id).map((alias) => alias.alias), ...spoken]
     .map(normalize).filter((term) => term.length >= 2);
 }
@@ -31,44 +37,85 @@ function distance(a, b) {
   return row[b.length];
 }
 
+function maxTypoDistance(term) {
+  if (term.length < 5) return 0;
+  if (term.length <= 8) return 1;
+  if (term.length <= 16) return 2;
+  return 3;
+}
+
+function fuzzyMatches(input, name, term) {
+  const allowed = maxTypoDistance(term);
+  if (!allowed) return [];
+  const found = [];
+  for (let delta = -allowed; delta <= allowed; delta++) {
+    const length = term.length + delta;
+    if (length < 4) continue;
+    for (let i = 0; i + length <= input.length; i++) {
+      if (distance(input.slice(i, i + length), term) <= allowed) {
+        found.push({ name, start: i, end: i + length, term, fuzzy: true });
+      }
+    }
+  }
+  return found;
+}
+
 export function verifyCustomSuggestions(text, options, aliases, suggestedBread, suggestedToppings) {
   const input = normalize(text);
   const names = new Map(options.map((option) => [option.name, option]));
-  const suggested = new Set([suggestedBread, ...(Array.isArray(suggestedToppings) ? suggestedToppings : [])]);
   const terms = options.flatMap((option) => termsFor(option, aliases)
     .map((term) => ({ name: option.name, term })));
+
   const matches = terms.flatMap(({ name, term }) => {
     const found = [];
     for (let i = 0; i <= input.length - term.length; i++) {
-      if (input.slice(i, i + term.length) === term) found.push({ name, start: i, end: i + term.length, term });
-    }
-    // A single typo is tolerated only for sufficiently distinctive names.
-    if (!found.length && suggested.has(name) && term.length >= 7 && term.length <= 40) {
-      for (const length of [term.length - 1, term.length, term.length + 1]) {
-        for (let i = 0; i + length <= input.length; i++) {
-          if (distance(input.slice(i, i + length), term) <= 1) found.push({ name, start: i, end: i + length, term, fuzzy: true });
-        }
+      if (input.slice(i, i + term.length) === term) {
+        found.push({ name, start: i, end: i + term.length, term });
       }
     }
-    return found;
+    // Recover typoed items even when the AI completely omitted them.
+    return found.length ? found : fuzzyMatches(input, name, term);
   });
-  // A short name inside a longer matched product is not a second product.
+
   const supportedMatches = matches.filter((match) => {
+    // Respect negative phrases such as "ไม่เอา..." when present.
     if (/(?:ไม่เอา|ไม่ใส่|ไม่ต้อง|งด|เอาออก)$/.test(input.slice(Math.max(0, match.start - 8), match.start))) return false;
-    if (matches.some((other) => other.name !== match.name && other.start === match.start && other.end === match.end)) return false;
-    return !matches.some((other) => other.name !== match.name && other.start <= match.start && other.end >= match.end && (other.start < match.start || other.end > match.end));
+
+    // Explicit evidence wins over a fuzzy match covering the same region.
+    if (matches.some((other) =>
+      other.name !== match.name &&
+      !other.fuzzy && match.fuzzy &&
+      other.start <= match.start && other.end >= match.end
+    )) return false;
+
+    // Do not interpret a shorter product name contained inside a longer one
+    // as an additional product.
+    return !matches.some((other) =>
+      other.name !== match.name &&
+      other.start <= match.start && other.end >= match.end &&
+      (other.start < match.start || other.end > match.end) &&
+      (!other.fuzzy || match.fuzzy)
+    );
   });
+
   const supported = new Set(supportedMatches.map((match) => match.name));
-  // A direct catalog name or a known alias is stronger evidence than a model
-  // omission. Prefer the first explicitly mentioned bread when one is present.
   const explicit = supportedMatches.filter((match) => !match.fuzzy);
+
   const breadType = names.get(suggestedBread)?.type === "bread" && supported.has(suggestedBread)
     ? suggestedBread
-    : explicit.find((match) => names.get(match.name)?.type === "bread")?.name ?? null;
+    : (explicit.find((match) => names.get(match.name)?.type === "bread")
+      ?? supportedMatches.find((match) => names.get(match.name)?.type === "bread"))?.name ?? null;
+
+  // Keep valid model suggestions and then recover every catalog-backed topping
+  // actually found in the customer's text.
   const toppings = [...new Set(Array.isArray(suggestedToppings) ? suggestedToppings : [])]
     .filter((name) => names.get(name)?.type === "topping" && supported.has(name));
-  for (const match of explicit) {
-    if (names.get(match.name)?.type === "topping" && !toppings.includes(match.name)) toppings.push(match.name);
+
+  for (const match of supportedMatches) {
+    if (names.get(match.name)?.type === "topping" && !toppings.includes(match.name)) {
+      toppings.push(match.name);
+    }
   }
+
   return { breadType, toppings };
 }
