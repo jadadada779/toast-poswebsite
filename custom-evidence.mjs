@@ -47,19 +47,39 @@ function maxTypoDistance(term) {
 function fuzzyMatches(input, name, term) {
   const allowed = maxTypoDistance(term);
   if (!allowed) return [];
+
+  // Thai orders are often written as several words that become adjacent after
+  // normalization. Sliding fuzzy matching across that merged Thai text can
+  // invent products, e.g. "วิปครีม ซอส..." -> "ครีมโอ".
+  // Thai spoken/misspelled forms should therefore be handled by exact
+  // catalog-backed aliases above. Keep fuzzy recovery for Latin/English terms.
+  if (/[฀-๿]/.test(term)) return [];
+
   const found = [];
   for (let delta = -allowed; delta <= allowed; delta++) {
     const length = term.length + delta;
     if (length < 4) continue;
     for (let i = 0; i + length <= input.length; i++) {
-      if (distance(input.slice(i, i + length), term) <= allowed) {
-        found.push({ name, start: i, end: i + length, term, fuzzy: true });
-      }
+      const candidate = input.slice(i, i + length);
+
+      // Do not let an English catalog term fuzzy-match across Thai text.
+      if (/[฀-๿]/.test(candidate)) continue;
+
+      const d = distance(candidate, term);
+      if (d > allowed) continue;
+
+      // Avoid completing a common partial word into a product, e.g.
+      // "cream" -> "creamo". Explicit aliases such as "crem o" normalize to
+      // an exact term and are matched before this fuzzy stage.
+      const isPureTruncation = candidate.length < term.length &&
+        (term.startsWith(candidate) || term.endsWith(candidate));
+      if (isPureTruncation && term.length <= 8) continue;
+
+      found.push({ name, start: i, end: i + length, term, fuzzy: true, distance: d });
     }
   }
   return found;
 }
-
 export function verifyCustomSuggestions(text, options, aliases, suggestedBread, suggestedToppings) {
   const input = normalize(text);
   const names = new Map(options.map((option) => [option.name, option]));
