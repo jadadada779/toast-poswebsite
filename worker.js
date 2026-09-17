@@ -17999,7 +17999,8 @@ function createCloudflareRouter(env) {
       const toppingNames = options.filter((option) => option.type === "topping").map((option) => option.name);
       const aliasRows = await customOptions.aliases.list();
       if (!env.AI) {
-        return { breadType: null, toppings: [], confidence: 0, error: "\u0E22\u0E31\u0E07\u0E44\u0E21\u0E48\u0E44\u0E14\u0E49\u0E15\u0E31\u0E49\u0E07\u0E04\u0E48\u0E32 Workers AI binding \u0E0A\u0E37\u0E48\u0E2D AI \u0E43\u0E19 Settings" };
+        const verified = verifyCustomSuggestions(text, options, aliasRows, null, []);
+        return { ...verified, confidence: verified.breadType || verified.toppings.length ? 0.7 : 0 };
       }
       const schema = {
         type: "object",
@@ -18021,7 +18022,8 @@ function createCloudflareRouter(env) {
           response_format: { type: "json_schema", json_schema: schema }
         });
       } catch (err) {
-        return { breadType: null, toppings: [], confidence: 0, error: String(err) };
+        const verified = verifyCustomSuggestions(text, options, aliasRows, null, []);
+        return { ...verified, confidence: verified.breadType || verified.toppings.length ? 0.7 : 0, error: verified.breadType || verified.toppings.length ? void 0 : String(err) };
       }
       let raw = result && "response" in result ? result.response : result;
       let parsed = raw;
@@ -18036,8 +18038,7 @@ function createCloudflareRouter(env) {
       const safeToppings = Array.isArray(parsed?.toppings) ? parsed.toppings.filter((topping) => toppingNames.includes(topping)) : [];
       const confidence = typeof parsed?.confidence === "number" ? Math.max(0, Math.min(1, parsed.confidence)) : 0.5;
       const verified = verifyCustomSuggestions(text, options, aliasRows, safeBread, safeToppings);
-      const changed = verified.breadType !== safeBread || verified.toppings.length !== safeToppings.length;
-      return { ...verified, confidence: changed ? Math.min(confidence, 0.5) : confidence };
+      return { ...verified, confidence: verified.breadType || verified.toppings.length ? Math.max(0.7, confidence) : 0 };
     }, "parseOrderText")
   };
   return router({
