@@ -70,17 +70,14 @@ function showNotice(message, type = "success") {
 function renderPanel(panel) {
   const activeCount = store.rules.filter((rule) => rule.enabled).length;
   panel.innerHTML = `
-    <div class="ap-hero">
-      <div class="ap-hero-icon">%</div>
-      <div class="ap-hero-copy"><span class="ap-eyebrow">ตั้งค่าส่วนลด</span><h2>สร้างโปรโมชั่น</h2><p>กำหนดยอดขั้นต่ำ สินค้าที่ร่วมรายการ และส่วนลดได้ในที่เดียว</p></div>
+    <div class="ap-toolbar">
+      <div class="ap-toolbar-copy">
+        <span class="ap-toolbar-icon" aria-hidden="true">${tagIcon}</span>
+        <div><h2>โปรโมชั่น</h2><p><strong>${activeCount}</strong> เปิดใช้งาน จากทั้งหมด <strong>${store.rules.length}</strong> รายการ</p></div>
+      </div>
       <button class="ap-main-button" data-action="new"><span class="ap-add-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span> เพิ่มโปรโมชั่น</button>
     </div>
-    <div class="ap-stats">
-      <div><span class="ap-stat-icon green">✓</span><p><strong>${activeCount}</strong><small>กำลังเปิดใช้งาน</small></p></div>
-      <div><span class="ap-stat-icon gold">▦</span><p><strong>${store.rules.length}</strong><small>โปรโมชั่นทั้งหมด</small></p></div>
-      <div class="ap-tip"><span class="ap-info-mark">i</span><p><strong>คิดส่วนลดอัตโนมัติ</strong><small>เมื่อสินค้าในตะกร้าตรงตามเงื่อนไข</small></p></div>
-    </div>
-    <div class="ap-section-head"><div><h3>โปรโมชั่นของฉัน</h3><p>แตะการ์ดเพื่อแก้ไข หรือเปิด–ปิดได้ทันที</p></div></div>
+    <div class="ap-section-head"><div><h3>รายการโปรโมชั่น</h3><p>เปิด–ปิด แก้ไข หรือตรวจเงื่อนไขได้จากการ์ดแต่ละรายการ</p></div></div>
     <div class="ap-rule-grid">
       ${store.rules.length ? store.rules.map(ruleCard).join("") : `
         <button class="ap-empty" data-action="new"><span>＋</span><strong>ยังไม่มีโปรโมชั่น</strong><small>กดเพื่อสร้างโปรโมชั่นแรก</small></button>`}
@@ -327,11 +324,21 @@ function installStyles() {
   document.head.appendChild(style);
   const layout = document.createElement("style");
   layout.textContent = `
+    .ap-legacy-promotion{display:none!important}
+    .ap-panel{margin-top:18px}
     .ap-panel button{cursor:pointer}
+    .ap-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border:1px solid #ded5c7;border-radius:12px;background:#fff}
+    .ap-toolbar-copy{display:flex;align-items:center;gap:12px;min-width:0}
+    .ap-toolbar-copy h2{margin:0;font-size:18px;font-weight:650;color:#352b21}
+    .ap-toolbar-copy p{margin:2px 0 0;color:#766b5d;font-size:12px;font-weight:400}
+    .ap-toolbar-copy p strong{color:#554329;font-weight:650}
+    .ap-toolbar-icon{display:grid;width:42px;height:42px;flex:0 0 42px;place-items:center;border:1px solid #dbc89f;border-radius:9px;background:#faf4e7;color:#79591f}
+    .ap-toolbar-icon svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+    .ap-section-head{margin:20px 2px 10px}
     .ap-main-button{border:1px solid #674a24;min-height:48px}
     .ap-add-icon{display:grid;place-items:center;border:1px solid #b89a69;border-radius:6px;width:28px;height:28px}
     .ap-add-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8}
-    .ap-single .ap-wizard{width:min(1100px,100%);max-height:94dvh}
+    .ap-single .ap-wizard{width:min(980px,100%);max-height:94dvh}
     .ap-single .ap-wizard-head{background:#fffaf0;color:#392c20;border-bottom:1px solid #e4d7bc}
     .ap-single .ap-wizard-head span{color:#786544}.ap-single .ap-close{color:#654a26}
     .ap-single .ap-wizard-body{background:#fffdf8}
@@ -363,7 +370,7 @@ function installStyles() {
     .ap-single .ap-wizard-foot{justify-content:flex-end;flex-shrink:0}
     .ap-single button{min-height:44px}
     .ap-single label:focus-within{outline:2px solid #a77a30;outline-offset:2px}
-    @media(max-width:720px){.ap-scopes,.ap-overview,.ap-discount-grid{grid-template-columns:1fr;gap:12px}.ap-single .ap-wizard{max-height:96dvh}.ap-single .ap-scope{padding:12px}.ap-single .ap-category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.ap-single .ap-setting-list{margin-bottom:8px}.ap-single .ap-field input{min-width:0}}
+    @media(max-width:720px){.ap-toolbar{align-items:stretch;flex-direction:column;padding:14px}.ap-toolbar-copy h2{font-size:17px}.ap-main-button{width:100%}.ap-scopes,.ap-overview,.ap-discount-grid{grid-template-columns:1fr;gap:12px}.ap-single .ap-wizard{max-height:96dvh}.ap-single .ap-scope{padding:12px}.ap-single .ap-category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.ap-single .ap-setting-list{margin-bottom:8px}.ap-single .ap-field input{min-width:0}}
   `;
   document.head.appendChild(layout);
 }
@@ -373,10 +380,14 @@ async function mount() {
   const section = heading?.closest("section");
   if (!section || section.querySelector(".ap-panel")) return;
   installStyles();
+  const headingBlock = [...section.children].find((child) => child === heading || child.contains(heading));
+  [...section.children].forEach((child) => {
+    if (child !== headingBlock) child.classList.add("ap-legacy-promotion");
+  });
   const panel = document.createElement("div");
   panel.className = "ap-panel";
   panel.innerHTML = `<div class="ap-empty"><span>⌛</span><strong>กำลังโหลดโปรโมชั่น...</strong></div>`;
-  section.insertBefore(panel, section.children[1] || null);
+  headingBlock?.insertAdjacentElement("afterend", panel) || section.appendChild(panel);
   try { await refresh(panel); } catch (error) { panel.innerHTML = `<div class="ap-empty"><span>!</span><strong>โหลดโปรโมชั่นไม่สำเร็จ</strong><small>${escapeHtml(error.message)}</small></div>`; }
 }
 
