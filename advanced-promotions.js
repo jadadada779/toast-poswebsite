@@ -1,6 +1,11 @@
 const API = "/api/advanced-promotions";
 const categoryLabels = { shop: "เมนูร้าน", custom: "เมนู Custom", other: "เครื่องดื่ม" };
-const categoryIcons = { shop: "🍞", custom: "✨", other: "🥤" };
+const categoryIcons = {
+  shop: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16l-1-5H5l-1 5Zm2 0v9h12v-9M9 19v-5h6v5"/></svg>`,
+  custom: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M7 14v6"/></svg>`,
+  other: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h11l-1 12H7L6 7Zm2-3 7 3M17 9h2a2 2 0 0 1 0 4h-2"/></svg>`
+};
+const tagIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 8-8h7v7l-8 8-7-7Zm11-4h.01"/></svg>`;
 let store = { rules: [], menus: [] };
 let editingRule = null;
 let currentStep = 1;
@@ -32,7 +37,7 @@ function categoryCards(name, selected = []) {
 function menuSelector(name, selected = [], searchId) {
   if (!store.menus.length) return `<div class="ap-no-menu">ยังไม่มีเมนูสำหรับเลือก</div>`;
   return `
-    <div class="ap-menu-tools"><span>เลือกเฉพาะรายการที่ต้องการยกเว้น</span><input id="${searchId}" class="ap-search" type="search" placeholder="🔎 ค้นหาชื่อเมนู..."></div>
+    <div class="ap-menu-tools"><span>เลือกเฉพาะรายการที่ต้องการยกเว้น</span><input id="${searchId}" class="ap-search" type="search" placeholder="ค้นหาชื่อเมนู"></div>
     <div class="ap-menu-list" data-menu-list="${searchId}">
       ${store.menus.map((menu) => `
         <label class="ap-menu-item" data-search="${escapeHtml(menu.name.toLowerCase())}">
@@ -67,13 +72,13 @@ function renderPanel(panel) {
   panel.innerHTML = `
     <div class="ap-hero">
       <div class="ap-hero-icon">%</div>
-      <div class="ap-hero-copy"><span class="ap-eyebrow">PROMOTION BUILDER</span><h2>สร้างโปรโมชั่นได้ตามต้องการ</h2><p>กำหนดยอดขั้นต่ำ หมวดสินค้า เมนูยกเว้น และส่วนลดได้ในไม่กี่ขั้นตอน</p></div>
+      <div class="ap-hero-copy"><span class="ap-eyebrow">ตั้งค่าส่วนลด</span><h2>สร้างโปรโมชั่น</h2><p>กำหนดยอดขั้นต่ำ สินค้าที่ร่วมรายการ และส่วนลดได้ในที่เดียว</p></div>
       <button class="ap-main-button" data-action="new"><span>＋</span> สร้างโปรโมชั่น</button>
     </div>
     <div class="ap-stats">
       <div><span class="ap-stat-icon green">✓</span><p><strong>${activeCount}</strong><small>กำลังเปิดใช้งาน</small></p></div>
       <div><span class="ap-stat-icon gold">▦</span><p><strong>${store.rules.length}</strong><small>โปรโมชั่นทั้งหมด</small></p></div>
-      <div class="ap-tip"><span>💡</span><p><strong>ระบบคิดส่วนลดอัตโนมัติ</strong><small>เมื่อสินค้าในตะกร้าตรงตามเงื่อนไข</small></p></div>
+      <div class="ap-tip"><span class="ap-info-mark">i</span><p><strong>คิดส่วนลดอัตโนมัติ</strong><small>เมื่อสินค้าในตะกร้าตรงตามเงื่อนไข</small></p></div>
     </div>
     <div class="ap-section-head"><div><h3>โปรโมชั่นของฉัน</h3><p>แตะการ์ดเพื่อแก้ไข หรือเปิด–ปิดได้ทันที</p></div></div>
     <div class="ap-rule-grid">
@@ -91,7 +96,7 @@ function ruleCard(rule) {
     <article class="ap-rule-card ${rule.enabled ? "" : "is-disabled"}">
       <div class="ap-rule-top"><span class="ap-status ${rule.enabled ? "on" : "off"}"><i></i>${rule.enabled ? "เปิดใช้งาน" : "ปิดอยู่"}</span><span class="ap-priority">ลำดับ ${rule.priority}</span></div>
       <h4>${escapeHtml(rule.name)}</h4>
-      <div class="ap-rule-flow"><span>${categoryIcons[rule.conditionCategories?.[0]] ?? "🛒"}</span><b>ครบ ฿${rule.minSpend}</b><em>→</em><span>🏷️</span><b>${rule.discountType === "percent" ? `${rule.discountValue}%` : `฿${rule.discountValue}`}</b></div>
+      <div class="ap-rule-flow"><span class="ap-flow-icon">${categoryIcons[rule.conditionCategories?.[0]] ?? categoryIcons.shop}</span><b>ครบ ฿${rule.minSpend}</b><em>→</em><span class="ap-flow-icon">${tagIcon}</span><b>${rule.discountType === "percent" ? `${rule.discountValue}%` : `฿${rule.discountValue}`}</b></div>
       <p>${escapeHtml(ruleDescription(rule))}</p>
       <div class="ap-rule-meta"><span>${exclusions ? `⊘ ยกเว้น ${exclusions} เมนู` : "✓ ไม่มีเมนูยกเว้น"}</span><span>${rule.stackable ? "＋ ใช้ร่วมกับโปรอื่นได้" : "▣ ใช้โปรนี้โปรเดียว"}</span></div>
       <div class="ap-rule-actions"><button data-action="toggle" data-id="${rule.id}">${rule.enabled ? "ปิดชั่วคราว" : "เปิดใช้งาน"}</button><button class="primary" data-action="edit" data-id="${rule.id}">แก้ไข</button><button class="danger" title="ลบ" data-action="delete" data-id="${rule.id}">⌫</button></div>
@@ -130,7 +135,7 @@ function renderWizard(host, rule) {
           </section>
           <section class="ap-step-panel ${currentStep === 4 ? "active" : ""}" data-step-panel="4">
             <div class="ap-step-title"><span>4</span><div><h4>ตรวจสอบก่อนบันทึก</h4><p>ดูตัวอย่างกติกาที่ระบบจะนำไปใช้</p></div></div>
-            <div class="ap-summary"><span class="ap-summary-icon">🏷️</span><div><small>ตัวอย่างเงื่อนไข</small><h4 data-summary-title></h4><p data-summary-detail></p></div></div>
+            <div class="ap-summary"><span class="ap-summary-icon">${tagIcon}</span><div><small>สรุปเงื่อนไข</small><h4 data-summary-title></h4><p data-summary-detail></p></div></div>
             <div class="ap-setting-list"><label><span class="ap-toggle"><input type="checkbox" name="enabled" ${rule.enabled ? "checked" : ""}><i></i></span><div><strong>เปิดใช้งานทันที</strong><small>ระบบจะตรวจโปรโมชั่นนี้ในหน้าขายอัตโนมัติ</small></div></label><label><span class="ap-toggle"><input type="checkbox" name="stackable" ${rule.stackable ? "checked" : ""}><i></i></span><div><strong>ใช้ร่วมกับโปรโมชั่นอื่นได้</strong><small>หากปิด ระบบจะหยุดตรวจโปรโมชั่นลำดับถัดไปเมื่อโปรนี้ทำงาน</small></div></label></div>
           </section>
         </main>
@@ -257,6 +262,74 @@ function installStyles() {
   style.id = "ap-styles";
   style.textContent = `
     .ap-panel,.ap-panel *{box-sizing:border-box}.ap-panel{margin:20px 0;color:#342b20;font-family:"Noto Sans Thai","Sarabun",sans-serif}.ap-hero{display:flex;align-items:center;gap:16px;padding:22px;border:1px solid #ead8ad;border-radius:24px 24px 0 0;background:linear-gradient(135deg,#fffaf0 0%,#fff3cf 100%)}.ap-hero-icon{display:grid;width:54px;height:54px;flex:0 0 54px;place-items:center;border-radius:17px;background:#4e3917;color:#ffe09a;font:800 25px/1 "DM Sans"}.ap-hero-copy{min-width:0;flex:1}.ap-eyebrow{font-size:10px;font-weight:800;letter-spacing:.17em;color:#a47718}.ap-hero h2{margin:2px 0;font-size:23px;font-weight:750;letter-spacing:-.02em}.ap-hero p,.ap-section-head p{margin:0;color:#8c7957;font-size:13px}.ap-main-button,.ap-next,.ap-save{display:flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:13px;background:#4e3917;color:#fff;padding:11px 16px;font-weight:750;box-shadow:0 5px 15px #4e391727}.ap-main-button span{font-size:20px}.ap-stats{display:grid;grid-template-columns:1fr 1fr 1.5fr;border:1px solid #eadfca;border-top:0;border-radius:0 0 24px 24px;background:#fff}.ap-stats>div{display:flex;align-items:center;gap:10px;padding:14px 18px;border-right:1px solid #eee5d4}.ap-stats>div:last-child{border:0}.ap-stat-icon{display:grid;width:34px;height:34px;place-items:center;border-radius:11px;font-weight:800}.ap-stat-icon.green{background:#ebf6e4;color:#5e8a45}.ap-stat-icon.gold{background:#fff1c8;color:#9a6b11}.ap-stats p{display:grid;margin:0}.ap-stats strong{font-size:18px}.ap-stats small{color:#96815b;font-size:11px}.ap-tip{background:#fffcf4}.ap-section-head{display:flex;justify-content:space-between;margin:22px 2px 10px}.ap-section-head h3{margin:0;font-size:18px}.ap-rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ap-rule-card{padding:17px;border:1px solid #e8dcc5;border-radius:19px;background:#fff;box-shadow:0 7px 22px #80601b0a}.ap-rule-card.is-disabled{background:#f8f6f1;opacity:.7}.ap-rule-top,.ap-rule-actions,.ap-rule-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}.ap-status{display:flex;align-items:center;gap:6px;border-radius:99px;padding:4px 9px;font-size:11px;font-weight:700}.ap-status i{width:7px;height:7px;border-radius:50%}.ap-status.on{background:#edf7e8;color:#577d43}.ap-status.on i{background:#70a253}.ap-status.off{background:#eeeae2;color:#827766}.ap-status.off i{background:#a79d8d}.ap-priority{font-size:10px;color:#a08c68}.ap-rule-card h4{margin:13px 0 9px;font-size:17px}.ap-rule-flow{display:flex;align-items:center;gap:7px;padding:9px 10px;border-radius:12px;background:#fff8e8;font-size:13px}.ap-rule-flow em{color:#b9a47d}.ap-rule-card>p{margin:9px 0;color:#756549;font-size:12px}.ap-rule-meta{justify-content:flex-start;flex-wrap:wrap;color:#9b8865;font-size:10px}.ap-rule-actions{margin-top:14px;padding-top:12px;border-top:1px solid #f0e9db;justify-content:flex-end}.ap-rule-actions button,.ap-secondary{border:1px solid #ded2b9;border-radius:10px;background:#fff;padding:7px 10px;color:#67583f;font-size:12px;font-weight:650}.ap-rule-actions button.primary{background:#fff4d4;border-color:#e4c775;color:#7c5b13}.ap-rule-actions button.danger{color:#b75145}.ap-empty{display:grid;grid-column:1/-1;min-height:190px;place-items:center;align-content:center;gap:7px;border:2px dashed #dfcfaa;border-radius:20px;background:#fffaf0;color:#8c7449}.ap-empty span{display:grid;width:45px;height:45px;place-items:center;border-radius:15px;background:#ffedbb;font-size:24px}.ap-empty small{color:#a28f6e}.ap-overlay{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:18px;background:#3027189c;backdrop-filter:blur(5px)}.ap-wizard{display:flex;width:min(760px,100%);max-height:min(880px,94vh);flex-direction:column;overflow:hidden;border-radius:24px;background:#fffdf8;box-shadow:0 28px 80px #1e170f55}.ap-wizard-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;background:#4e3917;color:#fff}.ap-wizard-head span{color:#e9cb87;font-size:11px;font-weight:700}.ap-wizard-head h3{margin:2px 0 0;font-size:19px}.ap-close{border:0;background:transparent;color:#fff;font-size:29px}.ap-steps{display:grid;grid-template-columns:repeat(4,1fr);padding:14px 20px 10px;background:#fff}.ap-steps button{display:flex;align-items:center;justify-content:center;gap:7px;border:0;background:transparent;color:#a19279;font-size:11px}.ap-steps i{display:grid;width:27px;height:27px;place-items:center;border-radius:50%;background:#eee9df;font-style:normal;font-weight:700}.ap-steps button.active{color:#624813;font-weight:750}.ap-steps button.active i{background:#f4c95d;color:#49340c}.ap-progress{height:3px;background:#eee7d9}.ap-progress i{display:block;height:100%;background:#e8b83f;transition:width .2s}.ap-wizard-body{overflow-y:auto;padding:20px 24px}.ap-step-panel{display:none}.ap-step-panel.active{display:block}.ap-step-title{display:flex;align-items:center;gap:11px;margin-bottom:19px}.ap-step-title>span{display:grid;width:38px;height:38px;place-items:center;border-radius:12px;background:#fff0c5;color:#79560c;font-weight:800}.ap-step-title h4{margin:0;font-size:18px}.ap-step-title p{margin:1px 0 0;color:#95815f;font-size:12px}.ap-field{display:grid;gap:6px;margin-bottom:14px;color:#50432f;font-size:12px;font-weight:700}.ap-field>span b{color:#c2614e}.ap-field input,.ap-search{width:100%;height:44px;border:1px solid #ded2b9;border-radius:11px;background:#fff;padding:0 12px;color:#382f23;outline:none}.ap-field input:focus,.ap-search:focus{border-color:#d2a83c;box-shadow:0 0 0 3px #f5d98438}.ap-field small{color:#9e8b69;font-weight:400}.ap-field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ap-input-addon{display:flex;border:1px solid #ded2b9;border-radius:11px;overflow:hidden;background:#fff}.ap-input-addon input{border:0;border-radius:0}.ap-input-addon i{display:grid;min-width:52px;place-items:center;background:#f7f1e5;color:#8c7752;font-style:normal;font-weight:600}.ap-category-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.ap-category{position:relative;display:flex;min-height:85px;align-items:center;gap:9px;border:1.5px solid #e4dac7;border-radius:15px;background:#fff;padding:12px;cursor:pointer}.ap-category input{position:absolute;opacity:0}.ap-category-icon{font-size:22px}.ap-category>span:nth-of-type(2){display:grid}.ap-category strong{font-size:12px}.ap-category small{color:#9b896b;font-size:9px;font-weight:400}.ap-tick{display:none;margin-left:auto}.ap-category.is-selected{border-color:#d5aa3e;background:#fff8e3;box-shadow:0 0 0 2px #f4d88742}.ap-category.is-selected .ap-tick{display:block;color:#98700f;font-weight:900}.ap-exclude{margin-top:14px;border:1px solid #e6dcc8;border-radius:14px;background:#fff}.ap-exclude summary{display:flex;align-items:center;gap:10px;padding:12px;cursor:pointer;list-style:none}.ap-exclude summary>span{display:grid;width:32px;height:32px;place-items:center;border-radius:10px;background:#fff0e8;color:#ad5f49}.ap-exclude summary div{display:grid;flex:1}.ap-exclude summary strong{font-size:12px}.ap-exclude summary small{color:#9a896b;font-size:10px;font-weight:400}.ap-exclude summary>.ap-count{display:grid;min-width:23px;height:23px;place-items:center;border-radius:99px;background:#f3ead8;color:#83693a;font-size:10px}.ap-exclude summary>i{font-style:normal}.ap-menu-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #eee6d8;padding:10px 12px;color:#9b896b;font-size:10px}.ap-search{max-width:230px;height:36px;font-size:11px}.ap-menu-list{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;max-height:210px;overflow:auto;padding:0 12px 12px}.ap-menu-item{display:flex;align-items:center;gap:8px;border:1px solid #eee6d7;border-radius:10px;padding:8px;cursor:pointer}.ap-menu-item input{position:absolute;opacity:0}.ap-menu-check{display:grid;width:20px;height:20px;place-items:center;border:1px solid #d8cdb8;border-radius:6px;color:transparent}.ap-menu-item:has(input:checked){border-color:#d8b34e;background:#fff9e8}.ap-menu-item:has(input:checked) .ap-menu-check{background:#d8ad38;color:#fff}.ap-menu-name{display:grid;flex:1;font-size:11px;font-weight:650}.ap-menu-name small{color:#a08f72;font-size:9px;font-weight:400}.ap-menu-item>strong{font-size:10px}.ap-discount-box{margin-top:14px;padding:14px;border-radius:15px;background:#f9f5ec}.ap-label{font-size:11px;font-weight:700}.ap-segment{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:7px 0 14px;padding:4px;border-radius:11px;background:#eae3d6}.ap-segment label{border-radius:8px;padding:8px;text-align:center;color:#8c7b5e;font-size:11px;font-weight:650;cursor:pointer}.ap-segment input{position:absolute;opacity:0}.ap-segment label.selected{background:#fff;color:#664a13;box-shadow:0 2px 7px #604b2817}.ap-max-field.is-muted{opacity:.5}.ap-summary{display:flex;gap:13px;align-items:center;border:1px solid #e8ce88;border-radius:16px;background:linear-gradient(135deg,#fff8df,#fffdf5);padding:16px}.ap-summary-icon{display:grid;width:45px;height:45px;place-items:center;border-radius:14px;background:#ffedb6;font-size:21px}.ap-summary div{min-width:0}.ap-summary small{color:#9c7a29}.ap-summary h4{margin:2px 0;font-size:16px}.ap-summary p{margin:0;color:#7f6d4e;font-size:11px}.ap-setting-list{display:grid;gap:8px;margin-top:13px}.ap-setting-list>label{display:flex;align-items:center;gap:12px;border:1px solid #e8dfcf;border-radius:13px;padding:12px}.ap-setting-list label>div{display:grid}.ap-setting-list strong{font-size:12px}.ap-setting-list small{color:#98876a;font-size:10px}.ap-toggle{position:relative;width:43px;height:24px;flex:0 0 43px}.ap-toggle input{position:absolute;opacity:0}.ap-toggle i{position:absolute;inset:0;border-radius:99px;background:#d8d0c2}.ap-toggle i:after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}.ap-toggle input:checked+i{background:#76a45b}.ap-toggle input:checked+i:after{transform:translateX(19px)}.ap-wizard-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #eee5d5;padding:14px 20px;background:#fff}.ap-wizard-foot>span{color:#a18e6b;font-size:10px}.ap-secondary,.ap-next,.ap-save{min-width:105px}.ap-notice{position:fixed;z-index:1200;top:18px;left:50%;transform:translateX(-50%);border-radius:12px;background:#496c39;color:#fff;padding:11px 16px;box-shadow:0 8px 25px #2f251d40;font-size:12px;font-weight:700}.ap-notice.error{background:#a9443b}@media(max-width:720px){.ap-hero{align-items:flex-start;flex-wrap:wrap}.ap-hero-copy{width:calc(100% - 70px)}.ap-main-button{width:100%}.ap-stats{grid-template-columns:1fr 1fr}.ap-tip{grid-column:1/-1}.ap-stats>div:nth-child(2){border-right:0}.ap-rule-grid{grid-template-columns:1fr}.ap-overlay{padding:0;align-items:end}.ap-wizard{max-height:96vh;border-radius:22px 22px 0 0}.ap-wizard-head{padding:15px 17px}.ap-steps{padding:10px 8px 7px}.ap-steps button{display:grid;gap:3px}.ap-steps button span{font-size:9px}.ap-wizard-body{padding:16px}.ap-field-row,.ap-category-grid,.ap-menu-list{grid-template-columns:1fr}.ap-category{min-height:66px}.ap-menu-tools{align-items:stretch;flex-direction:column}.ap-search{max-width:none}.ap-wizard-foot{padding:12px}.ap-wizard-foot>span{display:none}.ap-secondary,.ap-next,.ap-save{flex:1}}
+  `;
+  style.textContent += `
+    /* Human-designed visual pass: restrained radii, neutral surfaces and Thai-first typography. */
+    .ap-panel{font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif;color:#332b22}
+    .ap-panel h2,.ap-panel h3,.ap-panel h4,.ap-panel strong,.ap-panel button{font-family:"Noto Sans Thai","Sarabun",system-ui,sans-serif}
+    .ap-hero{padding:20px;border-color:#ddd4c5;border-radius:14px 14px 0 0;background:#fbf8f2}
+    .ap-hero-icon{width:48px;height:48px;flex-basis:48px;border-radius:9px;background:#4a351d;color:#f0cf83;font-size:22px}
+    .ap-eyebrow{font-size:11px;font-weight:600;letter-spacing:0;color:#92713d}
+    .ap-hero h2{margin:3px 0 1px;font-size:21px;font-weight:700;letter-spacing:0}
+    .ap-hero p,.ap-section-head p{font-size:13px;line-height:1.55;color:#7c6d58}
+    .ap-main-button,.ap-next,.ap-save{min-height:42px;border-radius:8px;background:#4a351d;padding:9px 16px;box-shadow:none;font-size:13px;font-weight:600}
+    .ap-stats{border-color:#ddd4c5;border-radius:0 0 14px 14px}
+    .ap-stats>div{padding:13px 16px;border-color:#e7e0d5}
+    .ap-stat-icon{width:32px;height:32px;border-radius:7px}
+    .ap-info-mark{display:grid;width:25px;height:25px;place-items:center;border:1px solid #cdbb94;border-radius:50%;color:#836736;font:700 13px/1 Georgia,serif}
+    .ap-rule-grid{gap:14px}
+    .ap-rule-card{padding:18px;border-color:#ddd5c8;border-radius:12px;box-shadow:none}
+    .ap-rule-card.is-disabled{opacity:.62}
+    .ap-status{padding:4px 8px;font-size:11px;font-weight:600}
+    .ap-rule-card h4{margin:14px 0 10px;font-size:16px;line-height:1.45}
+    .ap-rule-flow{gap:9px;padding:10px 12px;border:1px solid #eee2c9;border-radius:8px;background:#fcf8ef}
+    .ap-flow-icon,.ap-category-icon,.ap-summary-icon{color:#765721}
+    .ap-flow-icon svg{display:block;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+    .ap-rule-card>p{font-size:12px;line-height:1.6;color:#675b49}
+    .ap-rule-meta{gap:14px;font-size:11px;color:#82745f}
+    .ap-rule-actions button,.ap-secondary{min-height:37px;border-color:#d5ccbd;border-radius:7px;padding:7px 12px;background:#fff;font-size:12px;font-weight:600}
+    .ap-rule-actions button.primary{background:#f4ead2;border-color:#d7bb7a;color:#624818}
+    .ap-empty{border-radius:12px;background:#fbf8f2}
+    .ap-overlay{background:#2b241db8;backdrop-filter:none}
+    .ap-wizard{border:1px solid #d4cab9;border-radius:16px;background:#faf8f4;box-shadow:0 18px 45px #21180e4d}
+    .ap-wizard-head{padding:17px 20px;background:#4a351d}
+    .ap-wizard-head span{color:#d9c49a;font-size:11px;font-weight:500}
+    .ap-wizard-head h3{font-size:18px;font-weight:650}
+    .ap-steps{padding:13px 18px 9px;border-bottom:1px solid #ebe4d9}
+    .ap-steps i{width:25px;height:25px;background:#eeeae3;font-size:11px}
+    .ap-steps button.active i{background:#d9ad4b;color:#3f2d15}
+    .ap-progress{height:2px}
+    .ap-wizard-body{padding:22px 24px;background:#faf8f4}
+    .ap-step-title>span{width:35px;height:35px;border-radius:8px;background:#efe4cc;color:#664b1e}
+    .ap-step-title h4{font-size:17px}.ap-step-title p{font-size:12px;color:#7d6f5a}
+    .ap-field{gap:7px;margin-bottom:16px;font-size:13px;font-weight:600}
+    .ap-field input,.ap-search{height:45px;border-color:#cfc6b8;border-radius:7px;padding:0 12px;background:#fff;font:400 14px "Sarabun","Noto Sans Thai",sans-serif}
+    .ap-field input:focus,.ap-search:focus{border-color:#9c793d;box-shadow:0 0 0 2px #9c793d1f}
+    .ap-input-addon{border-color:#cfc6b8;border-radius:7px}
+    .ap-input-addon i{background:#f2eee7;color:#6e6250;font-size:12px}
+    .ap-category{min-height:78px;border:1px solid #d9d1c4;border-radius:9px;padding:11px;background:#fff}
+    .ap-category-icon{display:grid;width:27px;height:27px;place-items:center}
+    .ap-category-icon svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+    .ap-category strong{font-size:12px}.ap-category small{font-size:10px}
+    .ap-category.is-selected{border-color:#aa823a;background:#f8f0de;box-shadow:none}
+    .ap-exclude{border-color:#d9d1c4;border-radius:9px}
+    .ap-exclude summary{padding:12px 13px}
+    .ap-exclude summary>span{width:29px;height:29px;border-radius:6px;background:#f5ece6}
+    .ap-menu-tools{border-color:#e5ded3;padding:11px 13px;font-size:11px}
+    .ap-search{height:37px}
+    .ap-menu-item{border-color:#e0d8cc;border-radius:7px;padding:9px}
+    .ap-menu-item:has(input:checked){border-color:#ae873d;background:#f8f0de}
+    .ap-menu-check{border-radius:4px}
+    .ap-discount-box{border:1px solid #dfd7ca;border-radius:9px;background:#f4f1eb}
+    .ap-segment{border-radius:7px;background:#e6e0d7}
+    .ap-segment label{border-radius:5px}.ap-segment label.selected{box-shadow:none}
+    .ap-summary{border-color:#d4bd85;border-radius:9px;background:#f8f1df}
+    .ap-summary-icon{width:40px;height:40px;border-radius:7px;background:#ead7a7}
+    .ap-summary-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+    .ap-setting-list>label{border-color:#d9d1c4;border-radius:8px;background:#fff}
+    .ap-wizard-foot{border-color:#e1d9cc;padding:13px 18px}
+    .ap-notice{border-radius:7px;box-shadow:0 8px 22px #2f251d30}
+    @media(max-width:720px){.ap-wizard{border-radius:16px 16px 0 0}.ap-wizard-body{padding:17px 16px}.ap-field input,.ap-search{font-size:16px}.ap-category{min-height:64px}.ap-hero-copy{width:calc(100% - 64px)}}
   `;
   document.head.appendChild(style);
 }
