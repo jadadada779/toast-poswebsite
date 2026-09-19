@@ -81,8 +81,8 @@
 }
 
 .topping-price-group button[aria-pressed="true"] {
-  border-color: #78a982 !important;
-  background: #eaf5ec !important;
+  border-color: #5f916a !important;
+  background: #dceee0 !important;
 }
 
 @media (min-width: 640px) {
