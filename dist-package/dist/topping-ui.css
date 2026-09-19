@@ -24,17 +24,6 @@
   font-size: 12px;
 }
 
-.topping-selected-count {
-  margin-left: auto;
-  padding: 5px 10px;
-  border: 1px solid #d9cba9;
-  border-radius: 999px;
-  background: #f8f1e2;
-  color: #765b27;
-  font-size: 11px;
-  font-weight: 700;
-}
-
 .topping-price-group {
   padding: 13px;
   border: 1px solid;
@@ -56,7 +45,7 @@
 }
 
 .topping-price-group > div:first-child h4 {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .topping-price-group > div.grid {
@@ -69,6 +58,7 @@
   min-height: 66px;
   padding: 10px 12px;
   border-radius: 11px;
+  font-size: 15px;
   transition: border-color .15s ease, background-color .15s ease, transform .15s ease;
 }
 
@@ -77,29 +67,18 @@
 }
 
 .topping-price-group button[aria-pressed] strong {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.35;
 }
 
 .topping-price-group button[aria-pressed] small {
   margin-top: 5px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
-.topping-price-group button[aria-pressed="true"]::after {
-  content: "✓ เลือกแล้ว";
-  display: inline-flex;
-  margin-top: 7px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, .72);
-  color: #385f40;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.topping-price-group.is-ten button[aria-pressed="true"]::after {
-  color: #365f68;
+.topping-price-group button[aria-pressed="true"] {
+  border: 2px solid #4f8a5b !important;
+  background: #fff !important;
 }
 
 @media (min-width: 640px) {
