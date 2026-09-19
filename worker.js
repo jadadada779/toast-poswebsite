@@ -17809,6 +17809,112 @@ var calculateTotals = /* @__PURE__ */ __name22((subtotal, shippingFee, requested
   const shippingDiscount = discountedSubtotal >= 50 ? Math.min(5, shippingFee) : 0;
   return { subtotal, manualDiscount, promotionDiscount, shippingFee, shippingDiscount, total: discountedSubtotal + shippingFee - shippingDiscount };
 }, "calculateTotals");
+
+// Flexible promotions live in their own table so existing promotion data and
+// deployments continue to work without a separate D1 migration command.
+async function ensureAdvancedPromotions(db) {
+  await db.prepare(`CREATE TABLE IF NOT EXISTS advancedPromotions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    minSpend INTEGER NOT NULL DEFAULT 0,
+    conditionCategories TEXT NOT NULL DEFAULT '[]',
+    conditionExcludedMenuIds TEXT NOT NULL DEFAULT '[]',
+    targetCategories TEXT NOT NULL DEFAULT '[]',
+    targetExcludedMenuIds TEXT NOT NULL DEFAULT '[]',
+    discountType TEXT NOT NULL DEFAULT 'fixed',
+    discountValue INTEGER NOT NULL DEFAULT 0,
+    maxDiscount INTEGER,
+    stackable INTEGER NOT NULL DEFAULT 1,
+    priority INTEGER NOT NULL DEFAULT 100,
+    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`).run();
+}
+
+function parseJsonArray(value) {
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function withAdvancedPromotion(row) {
+  return {
+    ...row,
+    enabled: Boolean(row.enabled),
+    stackable: Boolean(row.stackable),
+    conditionCategories: parseJsonArray(row.conditionCategories),
+    conditionExcludedMenuIds: parseJsonArray(row.conditionExcludedMenuIds).map(Number),
+    targetCategories: parseJsonArray(row.targetCategories),
+    targetExcludedMenuIds: parseJsonArray(row.targetExcludedMenuIds).map(Number)
+  };
+}
+
+async function listAdvancedPromotions(db) {
+  await ensureAdvancedPromotions(db);
+  return (await rows(db, "SELECT * FROM advancedPromotions ORDER BY priority, id")).map(withAdvancedPromotion);
+}
+
+function normalizeAdvancedPromotion(input) {
+  const categories = new Set(["shop", "custom", "other"]);
+  const cleanCategories = (value) => Array.isArray(value) ? [...new Set(value.filter((item) => categories.has(item)))] : [];
+  const cleanIds = (value) => Array.isArray(value) ? [...new Set(value.map(Number).filter((id) => Number.isInteger(id) && id > 0))] : [];
+  const name = String(input?.name || "").trim().slice(0, 160);
+  const discountType = input?.discountType === "percent" ? "percent" : "fixed";
+  const discountValue = Math.max(0, Math.trunc(Number(input?.discountValue) || 0));
+  if (!name) throw new Error("กรุณาระบุชื่อโปรโมชั่น");
+  if (discountValue <= 0 || discountType === "percent" && discountValue > 100) throw new Error("จำนวนส่วนลดไม่ถูกต้อง");
+  return {
+    name,
+    enabled: input?.enabled !== false,
+    minSpend: Math.max(0, Math.trunc(Number(input?.minSpend) || 0)),
+    conditionCategories: cleanCategories(input?.conditionCategories),
+    conditionExcludedMenuIds: cleanIds(input?.conditionExcludedMenuIds),
+    targetCategories: cleanCategories(input?.targetCategories),
+    targetExcludedMenuIds: cleanIds(input?.targetExcludedMenuIds),
+    discountType,
+    discountValue,
+    maxDiscount: input?.maxDiscount === null || input?.maxDiscount === "" || input?.maxDiscount === void 0 ? null : Math.max(0, Math.trunc(Number(input.maxDiscount) || 0)),
+    stackable: input?.stackable !== false,
+    priority: Math.max(1, Math.min(9999, Math.trunc(Number(input?.priority) || 100)))
+  };
+}
+
+async function handleAdvancedPromotionApi(request, db, url) {
+  await ensureAdvancedPromotions(db);
+  const idMatch = url.pathname.match(/^\/api\/advanced-promotions\/(\d+)$/);
+  if (request.method === "GET" && url.pathname === "/api/advanced-promotions") {
+    const [rules, menus] = await Promise.all([
+      listAdvancedPromotions(db),
+      rows(db, "SELECT id, name, category, price FROM menuItems WHERE isActive = 1 ORDER BY category, sortOrder, id")
+    ]);
+    return Response.json({ rules, menus }, { headers: { "Cache-Control": "no-store" } });
+  }
+  if (request.method === "POST" && url.pathname === "/api/advanced-promotions") {
+    const value = normalizeAdvancedPromotion(await request.json());
+    const result = await db.prepare(`INSERT INTO advancedPromotions
+      (name, enabled, minSpend, conditionCategories, conditionExcludedMenuIds, targetCategories, targetExcludedMenuIds, discountType, discountValue, maxDiscount, stackable, priority)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(value.name, value.enabled ? 1 : 0, value.minSpend, JSON.stringify(value.conditionCategories), JSON.stringify(value.conditionExcludedMenuIds), JSON.stringify(value.targetCategories), JSON.stringify(value.targetExcludedMenuIds), value.discountType, value.discountValue, value.maxDiscount, value.stackable ? 1 : 0, value.priority).run();
+    return Response.json({ id: idFrom(result) }, { status: 201 });
+  }
+  if (idMatch && request.method === "PUT") {
+    const value = normalizeAdvancedPromotion(await request.json());
+    await db.prepare(`UPDATE advancedPromotions SET
+      name = ?, enabled = ?, minSpend = ?, conditionCategories = ?, conditionExcludedMenuIds = ?, targetCategories = ?, targetExcludedMenuIds = ?, discountType = ?, discountValue = ?, maxDiscount = ?, stackable = ?, priority = ?, updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?`)
+      .bind(value.name, value.enabled ? 1 : 0, value.minSpend, JSON.stringify(value.conditionCategories), JSON.stringify(value.conditionExcludedMenuIds), JSON.stringify(value.targetCategories), JSON.stringify(value.targetExcludedMenuIds), value.discountType, value.discountValue, value.maxDiscount, value.stackable ? 1 : 0, value.priority, Number(idMatch[1])).run();
+    return Response.json({ ok: true });
+  }
+  if (idMatch && request.method === "DELETE") {
+    await db.prepare("DELETE FROM advancedPromotions WHERE id = ?").bind(Number(idMatch[1])).run();
+    return Response.json({ ok: true });
+  }
+  return new Response("Method not allowed", { status: 405 });
+}
 function createCloudflareRouter(env) {
   const db = env.DB;
   const menu = {
@@ -17871,7 +17977,11 @@ function createCloudflareRouter(env) {
     remove: async (id) => { await ensureDrinkExtras(); await db.prepare("DELETE FROM drinkExtras WHERE id = ?").bind(id).run(); }
   };
   const promotions = {
-    list: /* @__PURE__ */ __name22(async () => (await rows(db, "SELECT id, name, type, enabled, minSpend, firstMenuId, secondMenuId, secondCategory, discountAmount, qualifyingCategory, qualifyingCategories, targetCategory FROM promotions ORDER BY id")).map(withPromotion), "list"),
+    list: /* @__PURE__ */ __name22(async () => {
+      const basic = (await rows(db, "SELECT id, name, type, enabled, minSpend, firstMenuId, secondMenuId, secondCategory, discountAmount, qualifyingCategory, qualifyingCategories, targetCategory FROM promotions ORDER BY id")).map(withPromotion);
+      const advanced = (await listAdvancedPromotions(db)).map((rule) => ({ ...rule, id: 1e9 + Number(rule.id), advancedId: Number(rule.id), type: "flexible", discountAmount: rule.discountValue }));
+      return [...basic, ...advanced];
+    }, "list"),
     create: /* @__PURE__ */ __name22(async (input) => idFrom(await db.prepare("INSERT INTO promotions (name, type, enabled, minSpend, firstMenuId, secondMenuId, secondCategory, discountAmount, qualifyingCategory, qualifyingCategories, targetCategory) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(input.name, input.type, input.enabled ? 1 : 0, input.minSpend, input.firstMenuId, input.secondMenuId, input.secondCategory, input.discountAmount, input.qualifyingCategory, JSON.stringify(input.qualifyingCategories), input.targetCategory).run()), "create"),
     update: /* @__PURE__ */ __name22(async (id, input) => {
       await db.prepare("UPDATE promotions SET name = ?, type = ?, enabled = ?, minSpend = ?, firstMenuId = ?, secondMenuId = ?, secondCategory = ?, discountAmount = ?, qualifyingCategory = ?, qualifyingCategories = ?, targetCategory = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?").bind(input.name, input.type, input.enabled ? 1 : 0, input.minSpend, input.firstMenuId, input.secondMenuId, input.secondCategory, input.discountAmount, input.qualifyingCategory, JSON.stringify(input.qualifyingCategories), input.targetCategory, id).run();
@@ -18042,7 +18152,6 @@ function createCloudflareRouter(env) {
     }, "parseOrderText")
   };
   return router({
-    auth: router({ me: publicProcedure.query(() => null), logout: publicProcedure.mutation(() => ({ success: true })) }),
     auth: router({ me: publicProcedure.query(() => null), logout: publicProcedure.mutation(() => ({ success: true })) }),
     menu: router({ list: publicProcedure.query(menu.list), listAll: publicProcedure.query(menu.listAll), create: publicProcedure.input(menuInput).mutation(({ input }) => menu.create(input)), update: publicProcedure.input(menuInput.extend({ id: external_exports.number().int().positive() })).mutation(({ input }) => menu.update(input.id, input)), delete: publicProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => menu.remove(input.id)) }),
     delivery: router({ list: publicProcedure.query(delivery.list), create: publicProcedure.input(deliveryInput).mutation(({ input }) => delivery.create(input)), update: publicProcedure.input(deliveryInput.extend({ id: external_exports.number().int().positive() })).mutation(({ input }) => delivery.update(input.id, input)), delete: publicProcedure.input(external_exports.object({ id: external_exports.number().int().positive() })).mutation(({ input }) => delivery.remove(input.id)) }),
@@ -18257,6 +18366,13 @@ var worker_default = {
     if (!await hasValidSession(request, env.SESSION_SECRET)) {
       if (url2.pathname.startsWith("/api/")) return secure(new Response("Unauthorized", { status: 401, headers: { "Cache-Control": "no-store" } }));
       return secure(new Response(null, { status: 302, headers: { Location: "/login", "Cache-Control": "no-store" } }));
+    }
+    if (url2.pathname === "/api/advanced-promotions" || url2.pathname.startsWith("/api/advanced-promotions/")) {
+      try {
+        return secure(await handleAdvancedPromotionApi(request, env.DB, url2));
+      } catch (error) {
+        return secure(Response.json({ error: error instanceof Error ? error.message : "บันทึกโปรโมชั่นไม่สำเร็จ" }, { status: 400 }));
+      }
     }
     if (url2.pathname.startsWith("/api/trpc")) {
       const response = await fetchRequestHandler({ endpoint: "/api/trpc", req: request, router: createCloudflareRouter(env), createContext: /* @__PURE__ */ __name22(() => ({}), "createContext") });
