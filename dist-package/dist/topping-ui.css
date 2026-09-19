@@ -1,0 +1,131 @@
+.topping-picker {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid #e3dac7;
+  border-radius: 18px;
+  background: #fffdf9;
+}
+
+.topping-picker > div:first-child {
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.topping-picker > div:first-child h3 {
+  font-size: 16px;
+  color: #3d301d;
+}
+
+.topping-picker > div:first-child > span:not(.topping-selected-count) {
+  order: 3;
+  width: 100%;
+  color: #75684f;
+  font-size: 12px;
+}
+
+.topping-selected-count {
+  margin-left: auto;
+  padding: 5px 10px;
+  border: 1px solid #d9cba9;
+  border-radius: 999px;
+  background: #f8f1e2;
+  color: #765b27;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.topping-price-group {
+  padding: 13px;
+  border: 1px solid;
+  border-radius: 16px;
+}
+
+.topping-price-group.is-five {
+  border-color: #d7e6d9;
+  background: #f7fbf7;
+}
+
+.topping-price-group.is-ten {
+  border-color: #d6e4e7;
+  background: #f6fafb;
+}
+
+.topping-price-group > div:first-child {
+  margin-bottom: 11px;
+}
+
+.topping-price-group > div:first-child h4 {
+  font-size: 13px;
+}
+
+.topping-price-group > div.grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+.topping-price-group button[aria-pressed] {
+  min-height: 66px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  transition: border-color .15s ease, background-color .15s ease, transform .15s ease;
+}
+
+.topping-price-group button[aria-pressed]:hover {
+  transform: translateY(-1px);
+}
+
+.topping-price-group button[aria-pressed] strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.topping-price-group button[aria-pressed] small {
+  margin-top: 5px;
+  font-size: 12px;
+}
+
+.topping-price-group button[aria-pressed="true"]::after {
+  content: "✓ เลือกแล้ว";
+  display: inline-flex;
+  margin-top: 7px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .72);
+  color: #385f40;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.topping-price-group.is-ten button[aria-pressed="true"]::after {
+  color: #365f68;
+}
+
+@media (min-width: 640px) {
+  .topping-price-group > div.grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .topping-price-group > div.grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .topping-picker {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .topping-price-group {
+    padding: 10px;
+  }
+
+  .topping-price-group button[aria-pressed] {
+    min-height: 62px;
+    padding: 9px 10px;
+  }
+}
