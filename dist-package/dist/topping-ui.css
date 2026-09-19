@@ -57,13 +57,17 @@
 .topping-price-group button[aria-pressed] {
   min-height: 66px;
   padding: 10px 12px;
+  border-width: 2px !important;
   border-radius: 11px;
   font-size: 15px;
-  transition: border-color .15s ease, background-color .15s ease, transform .15s ease;
+  transform: none !important;
+  transition: border-color .15s ease, background-color .15s ease;
 }
 
-.topping-price-group button[aria-pressed]:hover {
-  transform: translateY(-1px);
+.topping-price-group button[aria-pressed]:hover,
+.topping-price-group button[aria-pressed]:active,
+.topping-price-group button[aria-pressed]:focus {
+  transform: none !important;
 }
 
 .topping-price-group button[aria-pressed] strong {
@@ -77,8 +81,8 @@
 }
 
 .topping-price-group button[aria-pressed="true"] {
-  border: 2px solid #4f8a5b !important;
-  background: #fff !important;
+  border-color: #78a982 !important;
+  background: #eaf5ec !important;
 }
 
 @media (min-width: 640px) {
