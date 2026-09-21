@@ -43,6 +43,58 @@ function productRows(root) {
   ];
 }
 
+function hideMenuTotal(root) {
+  const heading = [...root.querySelectorAll("h2")].find((item) => textOf(item) === "รายการเมนู");
+  const header = heading?.parentElement?.parentElement;
+  const total = [...(header?.children || [])].find(
+    (element) => element.tagName === "SPAN" && /^\d+$/.test(textOf(element)),
+  );
+
+  if (total) {
+    total.hidden = true;
+    total.setAttribute("aria-hidden", "true");
+  }
+}
+
+function formForTarget(root, target) {
+  const panelId = target === "menu-drinks" ? "menu-shop" : target;
+  const panel = root.querySelector(`#${panelId}`);
+  if (!panel) return null;
+
+  return panel.querySelector(".menu-ux-form") || directGrid(panel)?.firstElementChild || panel;
+}
+
+function scrollToManagementTop(root) {
+  root.querySelector("nav[aria-label='ทางลัดหน้าจัดการเมนู']")
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function watchSaveCompletion(button, root) {
+  let sawSaving = button.disabled || /กำลังบันทึก/.test(textOf(button));
+  let checks = 0;
+
+  const check = () => {
+    checks += 1;
+
+    if (!button.isConnected) {
+      if (sawSaving) scrollToManagementTop(root);
+      return;
+    }
+
+    const saving = button.disabled || /กำลังบันทึก/.test(textOf(button));
+    if (saving) sawSaving = true;
+
+    if (sawSaving && !saving) {
+      setTimeout(() => scrollToManagementTop(root), 100);
+      return;
+    }
+
+    if (checks < 60) setTimeout(check, 150);
+  };
+
+  setTimeout(check, 0);
+}
+
 function decorateActions(root) {
   productRows(root).forEach((row) => {
     row.classList.add("menu-ux-row");
@@ -141,8 +193,10 @@ function showTab(root, target, { scroll = false } = {}) {
   applyProductFilter(root);
 
   if (scroll) {
-    const destination = target === "menu-drinks" ? root.querySelector("#menu-drinks") : root.querySelector(`#${MENU_UX.activeTab}`);
-    requestAnimationFrame(() => destination?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    const destination = formForTarget(root, target);
+    requestAnimationFrame(() => {
+      setTimeout(() => destination?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
+    });
   }
 }
 
@@ -170,15 +224,27 @@ function enhanceMenuManagement() {
   addMobileAddButton(root.querySelector("#menu-custom"), "เพิ่มตัวเลือก");
   addMobileAddButton(root.querySelector("#menu-alias"), "เพิ่มคำเรียกแทน");
   addMobileAddButton(root.querySelector("#menu-delivery"), "เพิ่มพื้นที่");
+  hideMenuTotal(root);
   decorateActions(root);
 
   if (!root.dataset.menuUxBound) {
     root.dataset.menuUxBound = "true";
     root.addEventListener("click", (event) => {
+      const button = event.target.closest("button");
       const editButton = event.target.closest(".menu-ux-edit");
-      if (!editButton) return;
-      const form = root.querySelector("#menu-shop .menu-ux-form");
-      setTimeout(() => form?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+
+      if (editButton) {
+        const form = root.querySelector("#menu-shop .menu-ux-form");
+        setTimeout(() => form?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      }
+
+      if (
+        button &&
+        !button.classList.contains("menu-ux-add") &&
+        (/บันทึกการแก้ไข/.test(textOf(button)) || textOf(button).startsWith("เพิ่ม"))
+      ) {
+        watchSaveCompletion(button, root);
+      }
     });
   }
 
