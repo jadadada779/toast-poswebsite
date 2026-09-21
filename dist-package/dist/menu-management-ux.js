@@ -263,7 +263,7 @@ function enhanceMenuManagement() {
     link.addEventListener("click", (event) => {
       event.preventDefault();
       const target = link.getAttribute("href").slice(1);
-      showTab(root, target, { scroll: true });
+      showTab(root, target, { scroll: !isCompactLayout() });
     });
   });
 
