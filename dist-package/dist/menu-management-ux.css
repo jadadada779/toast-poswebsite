@@ -1,0 +1,152 @@
+.menu-ux-root {
+  --menu-green: #527d5d;
+  --menu-green-soft: #e8f3ea;
+}
+
+.menu-ux-tabs {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.menu-ux-tabs::-webkit-scrollbar { display: none; }
+
+.menu-ux-tabs a {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.menu-ux-tabs a[aria-current="page"] {
+  border-color: #6d9775 !important;
+  background: #dfeee2 !important;
+  color: #345c3e !important;
+  box-shadow: 0 2px 8px rgba(61, 100, 71, .12);
+}
+
+.menu-ux-panel[hidden],
+#menu-shop-list[hidden],
+#menu-drinks[hidden],
+.menu-ux-row[hidden] {
+  display: none !important;
+}
+
+.menu-ux-tools {
+  display: grid;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #eee5d4;
+  background: #fffdf8;
+}
+
+.menu-ux-search span {
+  display: block;
+  margin-bottom: 6px;
+  color: #746446;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.menu-ux-search input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #dfd4bf;
+  border-radius: 12px;
+  background: white;
+  padding: 0 13px;
+  color: #3d3324;
+  font-size: 14px;
+  outline: none;
+}
+
+.menu-ux-search input:focus {
+  border-color: #72977a;
+  box-shadow: 0 0 0 3px rgba(114, 151, 122, .14);
+}
+
+.menu-ux-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.menu-ux-filter {
+  min-height: 38px;
+  border: 1px solid #ded4c1;
+  border-radius: 11px;
+  background: white;
+  color: #6e6047;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.menu-ux-filter[aria-pressed="true"] {
+  border-color: #6d9775;
+  background: var(--menu-green-soft);
+  color: #345c3e;
+}
+
+.menu-ux-result {
+  min-height: 16px;
+  color: #6d806f;
+  font-size: 12px;
+}
+
+.menu-ux-add {
+  flex: 0 0 auto;
+  border: 1px solid #6d9775;
+  border-radius: 11px;
+  background: var(--menu-green-soft);
+  padding: 8px 11px;
+  color: #345c3e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.menu-ux-row button.menu-ux-edit,
+.menu-ux-row button.menu-ux-delete {
+  width: auto !important;
+  min-width: 40px;
+  padding-inline: 10px;
+  gap: 5px;
+}
+
+.menu-ux-row button.menu-ux-edit::after {
+  content: "แก้ไข";
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.menu-ux-row button.menu-ux-delete::after {
+  content: "ลบ";
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 1279px) {
+  .menu-ux-panel > div.grid > .menu-ux-form { order: 2; }
+  .menu-ux-panel > div.grid > .menu-ux-list { order: 1; }
+  .menu-ux-form { scroll-margin-top: 92px; }
+}
+
+@media (min-width: 720px) {
+  .menu-ux-tools {
+    grid-template-columns: minmax(240px, 1fr) auto;
+    align-items: end;
+  }
+  .menu-ux-result { grid-column: 1 / -1; }
+  .menu-ux-filters { min-width: 330px; }
+}
+
+@media (max-width: 560px) {
+  .menu-ux-root { margin-inline: -2px; }
+  .menu-ux-tabs { top: 4px !important; padding: 6px !important; }
+  .menu-ux-tabs a { padding: 9px 12px !important; font-size: 12px !important; }
+  .menu-ux-row { align-items: center; gap: 7px !important; padding-inline: 14px !important; }
+  .menu-ux-row button.menu-ux-edit,
+  .menu-ux-row button.menu-ux-delete { padding-inline: 8px; }
+  .menu-ux-row button.menu-ux-edit::after,
+  .menu-ux-row button.menu-ux-delete::after { display: none; }
+  .menu-ux-add { padding-inline: 9px; }
+}
