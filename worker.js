@@ -17810,6 +17810,44 @@ var calculateTotals = /* @__PURE__ */ __name22((subtotal, shippingFee, requested
   return { subtotal, manualDiscount, promotionDiscount, shippingFee, shippingDiscount, total: discountedSubtotal + shippingFee - shippingDiscount };
 }, "calculateTotals");
 
+var calculatePromotionDiscount = /* @__PURE__ */ __name22((items, rules, subtotal) => {
+  const activeRules = rules.filter((rule) => rule.enabled).sort((a, b) => (a.priority ?? a.id) - (b.priority ?? b.id));
+  let remaining = subtotal;
+  for (const rule of activeRules) {
+    let discount = 0;
+    if (rule.type === "flexible") {
+      const conditionCategories = rule.conditionCategories ?? [];
+      const conditionExcluded = rule.conditionExcludedMenuIds ?? [];
+      const targetCategories = rule.targetCategories ?? [];
+      const targetExcluded = rule.targetExcludedMenuIds ?? [];
+      const matches = (item, categories, excluded) => (categories.length === 0 || categories.includes(item.category)) && (!item.menuItemId || !excluded.includes(item.menuItemId));
+      const qualifyingTotal = items.filter((item) => matches(item, conditionCategories, conditionExcluded)).reduce((sum, item) => sum + item.lineTotal, 0);
+      const targetTotal = items.filter((item) => matches(item, targetCategories, targetExcluded)).reduce((sum, item) => sum + item.lineTotal, 0);
+      if (qualifyingTotal >= (rule.minSpend ?? 0) && targetTotal > 0) {
+        discount = rule.discountType === "percent" ? Math.floor(targetTotal * rule.discountValue / 100) : rule.discountValue;
+        if (rule.maxDiscount != null) discount = Math.min(discount, rule.maxDiscount);
+        discount = Math.min(discount, targetTotal);
+      }
+    }
+    if (rule.type === "min_spend" && (rule.minSpend ?? 0) > 0 && subtotal >= (rule.minSpend ?? 0)) discount = rule.discountAmount;
+    if (rule.type === "category_spend" && rule.targetCategory && (rule.minSpend ?? 0) > 0) {
+      const qualifyingCategories = (rule.qualifyingCategories?.length ?? 0) > 0 ? rule.qualifyingCategories : rule.qualifyingCategory ? [rule.qualifyingCategory] : [];
+      const qualifyingTotal = items.filter((item) => qualifyingCategories.includes(item.category)).reduce((sum, item) => sum + item.lineTotal, 0);
+      const targetTotal = items.filter((item) => item.category === rule.targetCategory).reduce((sum, item) => sum + item.lineTotal, 0);
+      if (qualifyingTotal >= (rule.minSpend ?? 0) && targetTotal > 0) discount = Math.min(rule.discountAmount, targetTotal);
+    }
+    if (rule.type === "bundle" && rule.firstMenuId) {
+      const firstQuantity = items.find((item) => item.menuItemId === rule.firstMenuId)?.quantity ?? 0;
+      const secondQuantity = rule.secondCategory ? items.filter((item) => item.category === rule.secondCategory).reduce((sum, item) => sum + item.quantity, 0) : rule.secondMenuId ? items.find((item) => item.menuItemId === rule.secondMenuId)?.quantity ?? 0 : 0;
+      if (firstQuantity > 0 && secondQuantity > 0) discount = rule.discountAmount * Math.min(firstQuantity, secondQuantity);
+    }
+    discount = Math.max(0, Math.min(discount, remaining));
+    if (discount > 0) remaining -= discount;
+    if (discount > 0 && rule.type === "flexible" && !rule.stackable) break;
+  }
+  return subtotal - remaining;
+}, "calculatePromotionDiscount");
+
 // Flexible promotions live in their own table so existing promotion data and
 // deployments continue to work without a separate D1 migration command.
 async function ensureAdvancedPromotions(db) {
@@ -18003,7 +18041,9 @@ function createCloudflareRouter(env) {
     }, "detail"),
     create: /* @__PURE__ */ __name22(async (input) => {
       const normalized = input.items.map((item) => ({ ...item, lineTotal: item.unitPrice * item.quantity }));
-      const totals = calculateTotals(normalized.reduce((sum, item) => sum + item.lineTotal, 0), input.shippingFee, input.manualDiscount, input.promotionDiscount);
+      const subtotal = normalized.reduce((sum, item) => sum + item.lineTotal, 0);
+      const promotionDiscount = calculatePromotionDiscount(normalized, await promotions.list(), subtotal);
+      const totals = calculateTotals(subtotal, input.shippingFee, input.manualDiscount, promotionDiscount);
       const result = await db.prepare("INSERT INTO orders (code, subtotal, manualDiscount, promotionDiscount, shippingLabel, shippingFee, shippingDiscount, total) VALUES ('PENDING', ?, ?, ?, ?, ?, ?, ?)").bind(totals.subtotal, totals.manualDiscount, totals.promotionDiscount, input.shippingLabel, totals.shippingFee, totals.shippingDiscount, totals.total).run();
       const orderId = idFrom(result);
       const code = `TP-${String(orderId).padStart(4, "0")}`;
