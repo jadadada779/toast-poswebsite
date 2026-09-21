@@ -5,7 +5,7 @@ const MENU_UX = {
   search: "",
 };
 
-const TAB_TARGETS = ["menu-shop", "menu-custom", "menu-alias", "menu-delivery"];
+const TAB_TARGETS = ["menu-shop", "menu-custom", "menu-alias", "menu-delivery", "menu-cost"];
 
 function textOf(element) {
   return (element?.textContent || "").trim().toLocaleLowerCase("th");
