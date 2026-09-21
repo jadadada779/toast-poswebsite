@@ -112,7 +112,8 @@ function styles() {
   style.id = "toast-cost-styles";
   style.textContent = `
     #menu-cost[hidden] { display: none !important; }
-    .cost-tab-link { white-space: nowrap; }
+    .cost-tab-link { display:inline-flex !important; align-items:center !important; justify-content:center !important; min-height:32px !important; padding:6px 12px !important; border:0 !important; border-radius:9999px !important; background:#eaf4ed !important; color:#3e6950 !important; font-size:14px !important; line-height:20px !important; font-weight:500 !important; text-decoration:none !important; white-space:nowrap; box-sizing:border-box; }
+    .cost-tab-link[aria-current="page"] { background:#dceee2 !important; color:#245a3b !important; box-shadow:inset 0 0 0 1px #9bc1a8; }
     .cost-book { --ink:#302820; --muted:#756b60; --line:#ddcfbd; --paper:#fffdf7; --accent:#277354; --accent-soft:#e5f3ea; color:var(--ink); font-family:"Noto Sans Thai","Sarabun",sans-serif; font-size:14px; line-height:1.5; }
     .cost-book * { box-sizing:border-box; }
     .cost-book button,.cost-book input,.cost-book select { font:inherit; }
@@ -147,7 +148,7 @@ function styles() {
     .cost-summary__line { display:flex; justify-content:space-between; gap:20px; padding:5px 0; color:var(--muted); }
     .cost-summary__line strong { color:var(--ink); }
     .cost-summary__total { border-top:1px solid var(--ink); margin-top:8px; padding-top:10px; font-size:1rem; color:var(--ink); }
-    .cost-price-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:16px; align-items:end; }
+    .cost-price-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:16px; align-items:start; }
     .cost-price-hero { padding:12px 14px; border-radius:10px; background:var(--accent-soft); border-left:4px solid var(--accent); }
     .cost-price-hero span { display:block; color:#476659; font-size:.86rem; }
     .cost-price-hero strong { display:block; color:#185e40; font-size:1.2rem; margin-top:2px; }
@@ -206,7 +207,7 @@ function ingredientRow(item) {
       <label class="cost-field"><span>หน่วย</span><input class="cost-input" data-key="unit" value="${escapeHtml(item.unit)}" placeholder="g"></label>
       <label class="cost-field"><span>ราคา/แพ็ค</span><input class="cost-input" inputmode="decimal" type="number" min="0" step="any" data-key="packPrice" value="${escapeHtml(item.packPrice)}" placeholder="-"></label>
       <label class="cost-field"><span>ปริมาณที่ใช้</span><input class="cost-input" inputmode="decimal" type="number" min="0" step="any" data-key="usedQuantity" value="${escapeHtml(item.usedQuantity)}" placeholder="-"></label>
-      <div><span class="cost-entry__result">${money(ingredientCost(item.packPrice, item.packQuantity, item.usedQuantity))}</span><button type="button" class="cost-btn cost-btn--danger cost-remove" data-action="remove-ingredient" aria-label="ลบวัตถุดิบ ${escapeHtml(item.name || "รายการนี้")}">×</button></div>
+      <div><span class="cost-entry__result" data-role="ingredient-cost">${money(ingredientCost(item.packPrice, item.packQuantity, item.usedQuantity))}</span><button type="button" class="cost-btn cost-btn--danger cost-remove" data-action="remove-ingredient" aria-label="ลบวัตถุดิบ ${escapeHtml(item.name || "รายการนี้")}">×</button></div>
     </div>`;
 }
 
@@ -265,12 +266,12 @@ function mainPanelHtml() {
     </section>
     <section class="cost-summary" aria-live="polite">
       <h3>สรุปต้นทุน</h3>
-      ${summaryLines()}
-      <div class="cost-summary__line cost-summary__total"><strong>ต้นทุนรวม</strong><strong>${money(total.recipeTotal)}</strong></div>
+      <div id="cost-summary-lines">${summaryLines()}</div>
+      <div class="cost-summary__line cost-summary__total"><strong>ต้นทุนรวม</strong><strong id="cost-total">${money(total.recipeTotal)}</strong></div>
       <div class="cost-price-grid">
         <label class="cost-field"><span>กำไรที่ต้องการ (Margin %)</span><input id="cost-margin" class="cost-input" type="number" min="0" max="99.99" step="any" value="${escapeHtml(state.margin)}"></label>
-        <label class="cost-field"><span>ราคาขายจริง</span><input id="cost-actual-price" class="cost-input" type="number" min="0" step="any" value="${escapeHtml(state.actualPrice)}" placeholder="-"><span class="cost-profit">${actual > 0 ? `${profit >= 0 ? "กำไร" : "ขาดทุน"} ${signedMoney(profit)} (${profitPercent.toFixed(2)}%)` : ""}</span></label>
-        <div class="cost-price-hero"><span>ราคาขายแนะนำ</span><strong>${!invalidMargin ? money(total.suggestedPrice) : "—"}</strong>${invalidMargin ? `<div class="cost-warning">เปอร์เซ็นต์ต้องอยู่ระหว่าง 0–99.99</div>` : ""}</div>
+        <label class="cost-field"><span>ราคาขายจริง</span><input id="cost-actual-price" class="cost-input" type="number" min="0" step="any" value="${escapeHtml(state.actualPrice)}" placeholder="-"><span id="cost-profit" class="cost-profit">${actual > 0 ? `${profit >= 0 ? "กำไร" : "ขาดทุน"} ${signedMoney(profit)} (${profitPercent.toFixed(2)}%)` : ""}</span></label>
+        <div class="cost-price-hero"><span>ราคาขายแนะนำ</span><strong id="cost-suggested-price">${!invalidMargin ? money(total.suggestedPrice) : "—"}</strong><div id="cost-margin-warning" class="cost-warning">${invalidMargin ? "เปอร์เซ็นต์ต้องอยู่ระหว่าง 0–99.99" : ""}</div></div>
       </div>
       <div class="cost-actions"><button type="button" class="cost-btn cost-btn--primary" data-action="save-recipe">${state.editingId ? "บันทึกการแก้ไข" : "บันทึกสูตรนี้"}</button><button type="button" class="cost-btn cost-btn--reset" data-action="reset-form">ล้างฟอร์ม</button></div>
       <div id="cost-status" class="cost-status" role="status"></div>
@@ -318,6 +319,37 @@ function updateStateFromInput(input) {
   if (expense) {
     const item = state.expenses.find((entry) => entry.id === expense.dataset.expenseId);
     if (item) item[input.dataset.key] = input.value;
+  }
+}
+
+function refreshCostCalculations(panel) {
+  const total = totals();
+  state.suggestedPrice = total.suggestedPrice ?? 0;
+
+  state.ingredients.forEach((item) => {
+    const row = [...panel.querySelectorAll("[data-ingredient-id]")]
+      .find((element) => element.dataset.ingredientId === item.id);
+    const result = row?.querySelector('[data-role="ingredient-cost"]');
+    if (result) result.textContent = money(ingredientCost(item.packPrice, item.packQuantity, item.usedQuantity));
+  });
+
+  const lines = panel.querySelector("#cost-summary-lines");
+  const totalElement = panel.querySelector("#cost-total");
+  const suggested = panel.querySelector("#cost-suggested-price");
+  const warning = panel.querySelector("#cost-margin-warning");
+  const profitElement = panel.querySelector("#cost-profit");
+  if (lines) lines.innerHTML = summaryLines();
+  if (totalElement) totalElement.textContent = money(total.recipeTotal);
+  if (suggested) suggested.textContent = total.suggestedPrice === null ? "—" : money(total.suggestedPrice);
+  if (warning) warning.textContent = total.suggestedPrice === null ? "เปอร์เซ็นต์ต้องอยู่ระหว่าง 0–99.99" : "";
+
+  const actual = finiteNonNegative(state.actualPrice);
+  const profit = actual - total.unitCost;
+  const profitPercent = actual > 0 ? (profit / actual) * 100 : 0;
+  if (profitElement) {
+    profitElement.textContent = actual > 0
+      ? `${profit >= 0 ? "กำไร" : "ขาดทุน"} ${signedMoney(profit)} (${profitPercent.toFixed(2)}%)`
+      : "";
   }
 }
 
@@ -393,19 +425,7 @@ function bindPanel(panel) {
     if (!input) return;
     if (input.id === "app-net" || input.id === "app-fee") return updateAppResult(panel);
     updateStateFromInput(input);
-    const isTextEntry = input.type !== "number";
-    if (isTextEntry || event.isComposing) return;
-    const selection = { id: input.id, ingredient: input.closest("[data-ingredient-id]")?.dataset.ingredientId, expense: input.closest("[data-expense-id]")?.dataset.expenseId, key: input.dataset.key };
-    renderCostPage(panel, "cost");
-    const selector = selection.id ? `#${CSS.escape(selection.id)}` : selection.ingredient ? `[data-ingredient-id="${selection.ingredient}"] [data-key="${selection.key}"]` : selection.expense ? `[data-expense-id="${selection.expense}"] [data-key="${selection.key}"]` : null;
-    const restored = selector ? panel.querySelector(selector) : null;
-    if (restored) { restored.focus({ preventScroll: true }); restored.setSelectionRange?.(restored.value.length, restored.value.length); }
-  });
-  panel.addEventListener("change", (event) => {
-    const input = event.target.closest("input,select");
-    if (!input || input.id === "app-net" || input.id === "app-fee" || input.type === "number") return;
-    updateStateFromInput(input);
-    renderCostPage(panel, "cost");
+    refreshCostCalculations(panel);
   });
   panel.addEventListener("click", (event) => {
     const view = event.target.closest("[data-view]");
@@ -436,7 +456,8 @@ function enhanceCostCalculator() {
   if (!nav.querySelector('a[href="#menu-cost"]')) {
     const link = document.createElement("a");
     link.href = "#menu-cost";
-    link.className = "cost-tab-link";
+    const referenceLink = nav.querySelector('a[href="#menu-delivery"]') || nav.querySelector("a[href^='#menu-']");
+    link.className = `${referenceLink?.className || ""} cost-tab-link`.trim();
     link.textContent = "คำนวณทุน";
     nav.append(link);
   }
