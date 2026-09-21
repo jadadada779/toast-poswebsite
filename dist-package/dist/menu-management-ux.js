@@ -64,20 +64,43 @@ function formForTarget(root, target) {
   return panel.querySelector(".menu-ux-form") || directGrid(panel)?.firstElementChild || panel;
 }
 
+function scrollToElement(root, element) {
+  if (!element) return;
+  const nav = root.querySelector("nav[aria-label='ทางลัดหน้าจัดการเมนู']");
+  const offset = (nav?.getBoundingClientRect().height || 0) + 14;
+  const top = window.scrollY + element.getBoundingClientRect().top - offset;
+  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+}
+
 function scrollToManagementTop(root) {
-  root.querySelector("nav[aria-label='ทางลัดหน้าจัดการเมนู']")
-    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const nav = root.querySelector("nav[aria-label='ทางลัดหน้าจัดการเมนู']");
+  if (!nav) return;
+  const top = window.scrollY + nav.getBoundingClientRect().top - 6;
+  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
 }
 
 function watchSaveCompletion(button, root) {
   let sawSaving = button.disabled || /กำลังบันทึก/.test(textOf(button));
   let checks = 0;
+  let returned = false;
+
+  const returnToTop = () => {
+    if (returned) return;
+    returned = true;
+    scrollToManagementTop(root);
+    setTimeout(() => scrollToManagementTop(root), 320);
+  };
+
+  const fallback = setTimeout(returnToTop, 1400);
 
   const check = () => {
     checks += 1;
 
     if (!button.isConnected) {
-      if (sawSaving) scrollToManagementTop(root);
+      if (sawSaving) {
+        clearTimeout(fallback);
+        returnToTop();
+      }
       return;
     }
 
@@ -85,7 +108,8 @@ function watchSaveCompletion(button, root) {
     if (saving) sawSaving = true;
 
     if (sawSaving && !saving) {
-      setTimeout(() => scrollToManagementTop(root), 100);
+      clearTimeout(fallback);
+      setTimeout(returnToTop, 100);
       return;
     }
 
@@ -195,7 +219,7 @@ function showTab(root, target, { scroll = false } = {}) {
   if (scroll) {
     const destination = formForTarget(root, target);
     requestAnimationFrame(() => {
-      setTimeout(() => destination?.scrollIntoView({ behavior: "smooth", block: "start" }), 40);
+      setTimeout(() => scrollToElement(root, destination), 120);
     });
   }
 }
@@ -235,7 +259,7 @@ function enhanceMenuManagement() {
 
       if (editButton) {
         const form = root.querySelector("#menu-shop .menu-ux-form");
-        setTimeout(() => form?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+        setTimeout(() => scrollToElement(root, form), 120);
       }
 
       if (
