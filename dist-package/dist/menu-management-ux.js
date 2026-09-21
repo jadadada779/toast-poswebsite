@@ -83,11 +83,11 @@ function scrollToElement(root, element) {
     const nav = root.querySelector("nav[aria-label='ทางลัดหน้าจัดการเมนู']");
     const offset = (nav?.getBoundingClientRect().height || 0) + 14;
     const top = window.scrollY + element.getBoundingClientRect().top - offset;
-    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
   };
 
   performScroll();
-  setTimeout(performScroll, 380);
+  setTimeout(performScroll, 160);
 }
 
 function scrollToManagementTop(root) {
@@ -98,11 +98,11 @@ function scrollToManagementTop(root) {
 
   const performScroll = () => {
     const top = window.scrollY + root.getBoundingClientRect().top - 8;
-    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
   };
 
   performScroll();
-  setTimeout(performScroll, 380);
+  setTimeout(performScroll, 160);
 }
 
 function watchSaveCompletion(button, root) {
