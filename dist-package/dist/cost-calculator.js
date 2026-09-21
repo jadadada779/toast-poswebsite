@@ -83,8 +83,6 @@ function createInitialState() {
   return {
     editingId: null,
     name: "",
-    yieldQuantity: "1",
-    yieldUnit: "ชิ้น",
     margin: "40",
     actualPrice: "",
     ingredients: [emptyIngredient()],
@@ -103,10 +101,9 @@ function totals() {
   );
   const expenseTotal = state.expenses.reduce((sum, item) => sum + finiteNonNegative(item.amount), 0);
   const recipeTotal = ingredientTotal + expenseTotal;
-  const yieldQuantity = finiteNonNegative(state.yieldQuantity);
-  const unitCost = yieldQuantity > 0 ? recipeTotal / yieldQuantity : 0;
+  const unitCost = recipeTotal;
   const suggestedPrice = priceFromMargin(unitCost, state.margin);
-  return { ingredientTotal, expenseTotal, recipeTotal, yieldQuantity, unitCost, suggestedPrice };
+  return { ingredientTotal, expenseTotal, recipeTotal, unitCost, suggestedPrice };
 }
 
 function styles() {
@@ -116,54 +113,55 @@ function styles() {
   style.textContent = `
     #menu-cost[hidden] { display: none !important; }
     .cost-tab-link { white-space: nowrap; }
-    .cost-book { --ink:#302820; --muted:#756b60; --line:#ddcfbd; --paper:#fffdf7; --accent:#277354; --accent-soft:#e5f3ea; color:var(--ink); font-family:"Noto Sans Thai","Sarabun",sans-serif; }
+    .cost-book { --ink:#302820; --muted:#756b60; --line:#ddcfbd; --paper:#fffdf7; --accent:#277354; --accent-soft:#e5f3ea; color:var(--ink); font-family:"Noto Sans Thai","Sarabun",sans-serif; font-size:14px; line-height:1.5; }
     .cost-book * { box-sizing:border-box; }
     .cost-book button,.cost-book input,.cost-book select { font:inherit; }
-    .cost-book__header { display:flex; justify-content:space-between; gap:16px; align-items:flex-end; margin-bottom:18px; border-bottom:2px solid var(--ink); padding-bottom:12px; }
-    .cost-book__header h2 { margin:0; font-size:clamp(1.35rem,2vw,1.7rem); }
-    .cost-book__header p { margin:4px 0 0; color:var(--muted); font-size:.9rem; }
+    .cost-book__header { display:flex; justify-content:space-between; gap:14px; align-items:flex-end; margin-bottom:14px; border-bottom:1px solid var(--line); padding-bottom:10px; }
+    .cost-book__header h2 { margin:0; font-size:1.25rem; line-height:1.35; }
+    .cost-book__header p { margin:2px 0 0; color:var(--muted); font-size:.86rem; }
     .cost-switch { display:inline-flex; border:1px solid var(--line); border-radius:12px; padding:4px; background:#f6f0e6; gap:4px; }
-    .cost-switch button { border:0; background:transparent; color:var(--muted); min-height:42px; padding:8px 14px; border-radius:9px; cursor:pointer; }
+    .cost-switch button { border:0; background:transparent; color:var(--muted); min-height:38px; padding:6px 12px; border-radius:8px; cursor:pointer; font-size:14px; }
     .cost-switch button[aria-selected="true"] { background:var(--accent); color:#fff; box-shadow:0 2px 8px #1d5f4333; }
-    .cost-page { background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:clamp(16px,3vw,30px); box-shadow:0 8px 24px #4a32100d; background-image:linear-gradient(#efe6d9 1px,transparent 1px); background-size:100% 34px; }
+    .cost-page { background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:clamp(14px,2vw,20px); box-shadow:0 4px 14px #4a32100a; background-image:linear-gradient(#efe6d9 1px,transparent 1px); background-size:100% 32px; }
     .cost-field { display:grid; gap:6px; }
-    .cost-field > span { color:var(--muted); font-size:.9rem; font-weight:600; }
-    .cost-input,.cost-select { min-height:44px; width:100%; border:1px solid #cbbba7; border-radius:9px; padding:9px 11px; color:var(--ink); background:#fffefa; }
+    .cost-field > span { color:var(--muted); font-size:14px; font-weight:600; }
+    .cost-input,.cost-select { min-height:40px; width:100%; border:1px solid #cbbba7; border-radius:8px; padding:7px 10px; color:var(--ink); background:#fffefa; font-size:16px; }
     .cost-input:focus,.cost-select:focus { outline:3px solid #91cbb4; border-color:var(--accent); }
-    .cost-top-fields { display:grid; grid-template-columns:minmax(0,2fr) minmax(160px,1fr); gap:14px; margin-bottom:22px; }
-    .cost-yield { display:grid; grid-template-columns:minmax(90px,1fr) minmax(80px,.8fr); gap:8px; }
-    .cost-section { margin-top:22px; background:color-mix(in srgb,var(--paper) 92%,#fff); }
+    .cost-top-fields { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; margin-bottom:18px; }
+    .cost-section { margin-top:18px; background:color-mix(in srgb,var(--paper) 92%,#fff); }
     .cost-section__head { display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding-bottom:9px; margin-bottom:12px; }
-    .cost-section__head h3 { margin:0; font-size:1.08rem; }
-    .cost-btn { border:1px solid #b8a790; background:#fffefa; color:var(--ink); border-radius:9px; padding:8px 12px; min-height:40px; cursor:pointer; font-weight:600; }
+    .cost-section__head h3 { margin:0; font-size:1rem; }
+    .cost-btn { border:1px solid #b8a790; background:#fffefa; color:var(--ink); border-radius:8px; padding:6px 11px; min-height:38px; cursor:pointer; font-weight:600; font-size:14px; }
     .cost-btn:hover { border-color:var(--accent); }
     .cost-btn--primary { color:#fff; background:var(--accent); border-color:var(--accent); }
     .cost-btn--danger { color:#9f312d; border-color:#e3b5b0; background:#fff9f8; }
     .cost-btn--text { background:transparent; border-color:transparent; color:var(--muted); }
+    .cost-btn--reset { color:#a33d36; border-color:#e6b9b4; background:#fff5f4; }
+    .cost-btn--reset:hover { color:#8f2f29; border-color:#d9948d; background:#fdeceb; }
     .cost-entry { display:grid; grid-template-columns:minmax(130px,1.4fr) minmax(95px,.8fr) minmax(80px,.65fr) minmax(95px,.8fr) minmax(95px,.8fr) auto; gap:9px; align-items:end; padding:12px 0; border-bottom:1px dashed #d7c8b5; }
     .cost-entry--expense { grid-template-columns:minmax(180px,1fr) minmax(120px,.4fr) auto; }
-    .cost-entry__result { min-height:44px; display:flex; align-items:center; font-weight:700; color:var(--accent); white-space:nowrap; }
-    .cost-remove { width:42px; height:42px; padding:0; display:grid; place-items:center; font-size:1.25rem; }
-    .cost-summary { margin-top:26px; padding:18px; border:2px solid var(--ink); border-radius:12px; background:#fffefaed; }
+    .cost-entry__result { min-height:40px; display:flex; align-items:center; font-weight:700; color:var(--accent); white-space:nowrap; }
+    .cost-remove { width:38px; height:38px; padding:0; display:grid; place-items:center; font-size:1.15rem; }
+    .cost-summary { margin-top:22px; padding:16px; border:1px solid var(--ink); border-radius:10px; background:#fffefaed; }
     .cost-summary h3 { margin:0 0 12px; }
     .cost-summary__line { display:flex; justify-content:space-between; gap:20px; padding:5px 0; color:var(--muted); }
     .cost-summary__line strong { color:var(--ink); }
-    .cost-summary__total { border-top:1px solid var(--ink); margin-top:8px; padding-top:12px; font-size:1.08rem; color:var(--ink); }
-    .cost-price-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:18px; align-items:end; }
+    .cost-summary__total { border-top:1px solid var(--ink); margin-top:8px; padding-top:10px; font-size:1rem; color:var(--ink); }
+    .cost-price-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:16px; align-items:end; }
     .cost-price-hero { padding:12px 14px; border-radius:10px; background:var(--accent-soft); border-left:4px solid var(--accent); }
     .cost-price-hero span { display:block; color:#476659; font-size:.86rem; }
-    .cost-price-hero strong { display:block; color:#185e40; font-size:1.35rem; margin-top:2px; }
+    .cost-price-hero strong { display:block; color:#185e40; font-size:1.2rem; margin-top:2px; }
     .cost-profit { min-height:22px; margin:8px 0 0; font-size:.88rem; color:var(--muted); }
     .cost-warning { color:#a13932; font-size:.86rem; margin-top:6px; }
     .cost-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
     .cost-status { min-height:24px; margin-top:10px; color:var(--accent); font-size:.9rem; }
-    .cost-saved { margin-top:22px; }
+    .cost-saved { margin-top:18px; }
     .cost-saved summary { cursor:pointer; font-weight:700; padding:10px 0; }
-    .cost-recipe { display:grid; grid-template-columns:minmax(140px,1fr) auto auto; gap:10px; align-items:center; border-top:1px solid var(--line); padding:12px 0; }
+    .cost-recipe { display:grid; grid-template-columns:minmax(140px,1fr) auto; gap:10px; align-items:center; border-top:1px solid var(--line); padding:10px 0; }
     .cost-recipe__name { font-weight:700; }
     .cost-recipe__meta { color:var(--muted); font-size:.88rem; }
     .cost-recipe__actions { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
-    .cost-recipe__actions .cost-btn { padding:6px 9px; min-height:36px; }
+    .cost-recipe__actions .cost-btn { padding:5px 8px; min-height:34px; }
     .cost-empty { color:var(--muted); padding:14px 0; }
     .app-calc { max-width:720px; }
     .app-calc__grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
@@ -185,7 +183,7 @@ function styles() {
       .cost-price-hero { grid-column:1/-1; }
     }
     @media (max-width:600px) {
-      .cost-page { padding:14px; border-radius:12px; }
+      .cost-page { padding:14px; border-radius:10px; }
       .cost-top-fields,.app-calc__grid,.cost-price-grid { grid-template-columns:1fr; }
       .cost-entry,.cost-entry--expense { grid-template-columns:1fr 1fr; }
       .cost-entry .cost-field:first-child,.cost-entry--expense .cost-field:first-child { grid-column:1/-1; }
@@ -204,10 +202,10 @@ function ingredientRow(item) {
   return `
     <div class="cost-entry" data-ingredient-id="${item.id}">
       <label class="cost-field"><span>ชื่อวัตถุดิบ</span><input class="cost-input" data-key="name" value="${escapeHtml(item.name)}" placeholder="เช่น ขนมปัง"></label>
-      <label class="cost-field"><span>ปริมาณต่อแพ็ค</span><input class="cost-input" inputmode="decimal" type="number" min="0" step="any" data-key="packQuantity" value="${escapeHtml(item.packQuantity)}" placeholder="1000"></label>
+      <label class="cost-field"><span>ปริมาณต่อแพ็ค</span><input class="cost-input" inputmode="decimal" type="number" min="0" step="any" data-key="packQuantity" value="${escapeHtml(item.packQuantity)}" placeholder="-"></label>
       <label class="cost-field"><span>หน่วย</span><input class="cost-input" data-key="unit" value="${escapeHtml(item.unit)}" placeholder="g"></label>
-      <label class="cost-field"><span>ราคา/แพ็ค</span><input class="cost-input" inputmode="decimal" type="number" min="0" step="any" data-key="packPrice" value="${escapeHtml(item.packPrice)}" placeholder="0.00"></label>
-      <label class="cost-field"><span>ปริมาณที่ใช้</span><input class="cost-input" inputmode="decimal" type="number" min="0" step="any" data-key="usedQuantity" value="${escapeHtml(item.usedQuantity)}" placeholder="0"></label>
+      <label class="cost-field"><span>ราคา/แพ็ค</span><input class="cost-input" inputmode="decimal" type="number" min="0" step="any" data-key="packPrice" value="${escapeHtml(item.packPrice)}" placeholder="-"></label>
+      <label class="cost-field"><span>ปริมาณที่ใช้</span><input class="cost-input" inputmode="decimal" type="number" min="0" step="any" data-key="usedQuantity" value="${escapeHtml(item.usedQuantity)}" placeholder="-"></label>
       <div><span class="cost-entry__result">${money(ingredientCost(item.packPrice, item.packQuantity, item.usedQuantity))}</span><button type="button" class="cost-btn cost-btn--danger cost-remove" data-action="remove-ingredient" aria-label="ลบวัตถุดิบ ${escapeHtml(item.name || "รายการนี้")}">×</button></div>
     </div>`;
 }
@@ -216,7 +214,7 @@ function expenseRow(item) {
   return `
     <div class="cost-entry cost-entry--expense" data-expense-id="${item.id}">
       <label class="cost-field"><span>รายการค่าใช้จ่าย</span><input class="cost-input" data-key="name" value="${escapeHtml(item.name)}" placeholder="เช่น ค่ากล่อง หรือค่าแก๊ส"></label>
-      <label class="cost-field"><span>จำนวนเงิน/สูตร</span><input class="cost-input" inputmode="decimal" type="number" min="0" step="any" data-key="amount" value="${escapeHtml(item.amount)}" placeholder="0.00"></label>
+      <label class="cost-field"><span>จำนวนเงิน</span><input class="cost-input" inputmode="decimal" type="number" min="0" step="any" data-key="amount" value="${escapeHtml(item.amount)}" placeholder="-"></label>
       <button type="button" class="cost-btn cost-btn--danger cost-remove" data-action="remove-expense" aria-label="ลบค่าใช้จ่าย ${escapeHtml(item.name || "รายการนี้")}">×</button>
     </div>`;
 }
@@ -238,7 +236,6 @@ function recipesHtml() {
   return state.recipes.map((recipe) => `
     <article class="cost-recipe" data-recipe-id="${recipe.id}">
       <div><div class="cost-recipe__name">${escapeHtml(recipe.name || "สูตรไม่มีชื่อ")}</div><div class="cost-recipe__meta">ทุน ${money(recipe.unitCost)} · ขายแนะนำ ${money(recipe.suggestedPrice)}</div></div>
-      <div class="cost-recipe__meta">${escapeHtml(recipe.yieldQuantity || 1)} ${escapeHtml(recipe.yieldUnit || "ชิ้น")}/สูตร</div>
       <div class="cost-recipe__actions">
         <button type="button" class="cost-btn" data-action="edit-recipe">แก้ไข</button>
         <button type="button" class="cost-btn" data-action="duplicate-recipe">ทำสำเนา</button>
@@ -256,8 +253,7 @@ function mainPanelHtml() {
   const invalidMargin = total.suggestedPrice === null;
   return `
     <div class="cost-top-fields">
-      <label class="cost-field"><span>ชื่อเมนู / สูตร</span><input id="cost-name" class="cost-input" value="${escapeHtml(state.name)}" placeholder="เช่น ฮันนี่โทสต์"></label>
-      <label class="cost-field"><span>สูตรนี้ทำได้</span><span class="cost-yield"><input id="cost-yield" class="cost-input" inputmode="decimal" type="number" min="0" step="any" value="${escapeHtml(state.yieldQuantity)}"><input id="cost-yield-unit" class="cost-input" value="${escapeHtml(state.yieldUnit)}" placeholder="ชิ้น"></span></label>
+      <label class="cost-field"><span>ชื่อเมนู</span><input id="cost-name" class="cost-input" value="${escapeHtml(state.name)}" placeholder="เช่น ฮันนี่โทสต์"></label>
     </div>
     <section class="cost-section">
       <div class="cost-section__head"><h3>วัตถุดิบ</h3><button type="button" class="cost-btn" data-action="add-ingredient">＋ เพิ่มวัตถุดิบ</button></div>
@@ -270,15 +266,13 @@ function mainPanelHtml() {
     <section class="cost-summary" aria-live="polite">
       <h3>สรุปต้นทุน</h3>
       ${summaryLines()}
-      <div class="cost-summary__line cost-summary__total"><strong>ต้นทุนทั้งสูตร</strong><strong>${money(total.recipeTotal)}</strong></div>
-      <div class="cost-summary__line"><strong>ต้นทุนต่อ ${escapeHtml(state.yieldUnit || "หน่วย")}</strong><strong>${total.yieldQuantity > 0 ? money(total.unitCost) : "—"}</strong></div>
-      ${total.yieldQuantity > 0 ? "" : `<div class="cost-warning">จำนวนที่สูตรทำได้ต้องมากกว่า 0</div>`}
+      <div class="cost-summary__line cost-summary__total"><strong>ต้นทุนรวม</strong><strong>${money(total.recipeTotal)}</strong></div>
       <div class="cost-price-grid">
         <label class="cost-field"><span>กำไรที่ต้องการ (Margin %)</span><input id="cost-margin" class="cost-input" type="number" min="0" max="99.99" step="any" value="${escapeHtml(state.margin)}"></label>
-        <label class="cost-field"><span>ราคาขายจริง</span><input id="cost-actual-price" class="cost-input" type="number" min="0" step="any" value="${escapeHtml(state.actualPrice)}" placeholder="0.00"><span class="cost-profit">${actual > 0 ? `${profit >= 0 ? "กำไร" : "ขาดทุน"} ${signedMoney(profit)} (${profitPercent.toFixed(2)}%)` : "กรอกเพื่อดูกำไรจริง"}</span></label>
-        <div class="cost-price-hero"><span>ราคาขายแนะนำ</span><strong>${!invalidMargin && total.yieldQuantity > 0 ? money(total.suggestedPrice) : "—"}</strong>${invalidMargin ? `<div class="cost-warning">เปอร์เซ็นต์ต้องอยู่ระหว่าง 0–99.99</div>` : ""}</div>
+        <label class="cost-field"><span>ราคาขายจริง</span><input id="cost-actual-price" class="cost-input" type="number" min="0" step="any" value="${escapeHtml(state.actualPrice)}" placeholder="-"><span class="cost-profit">${actual > 0 ? `${profit >= 0 ? "กำไร" : "ขาดทุน"} ${signedMoney(profit)} (${profitPercent.toFixed(2)}%)` : ""}</span></label>
+        <div class="cost-price-hero"><span>ราคาขายแนะนำ</span><strong>${!invalidMargin ? money(total.suggestedPrice) : "—"}</strong>${invalidMargin ? `<div class="cost-warning">เปอร์เซ็นต์ต้องอยู่ระหว่าง 0–99.99</div>` : ""}</div>
       </div>
-      <div class="cost-actions"><button type="button" class="cost-btn cost-btn--primary" data-action="save-recipe">${state.editingId ? "บันทึกการแก้ไข" : "บันทึกสูตรนี้"}</button><button type="button" class="cost-btn cost-btn--text" data-action="reset-form">ล้างฟอร์ม</button></div>
+      <div class="cost-actions"><button type="button" class="cost-btn cost-btn--primary" data-action="save-recipe">${state.editingId ? "บันทึกการแก้ไข" : "บันทึกสูตรนี้"}</button><button type="button" class="cost-btn cost-btn--reset" data-action="reset-form">ล้างฟอร์ม</button></div>
       <div id="cost-status" class="cost-status" role="status"></div>
     </section>
     <details class="cost-saved" ${state.recipes.length ? "" : "open"}><summary>สูตรที่บันทึกไว้ (${state.recipes.length})</summary><div id="cost-recipes">${recipesHtml()}</div></details>`;
@@ -288,7 +282,7 @@ function appPanelHtml() {
   return `
     <div class="app-calc">
       <div class="app-calc__grid">
-        <label class="cost-field"><span>ราคาที่ต้องการได้รับสุทธิ</span><input id="app-net" class="cost-input" type="number" min="0" step="any" inputmode="decimal" placeholder="0.00"></label>
+        <label class="cost-field"><span>ราคาที่ต้องการได้รับสุทธิ</span><input id="app-net" class="cost-input" type="number" min="0" step="any" inputmode="decimal" placeholder="-"></label>
         <label class="cost-field"><span>แพลตฟอร์มหักค่าธรรมเนียม (%)</span><input id="app-fee" class="cost-input" type="number" min="0" max="99.99" step="any" inputmode="decimal" value="30"></label>
       </div>
       <div class="cost-actions"><button type="button" class="cost-btn" data-action="use-suggested">ใช้ราคาขายแนะนำ ${money(state.suggestedPrice)}</button></div>
@@ -313,8 +307,6 @@ function renderCostPage(panel, activeView = panel.dataset.activeView || "cost") 
 
 function updateStateFromInput(input) {
   if (input.id === "cost-name") state.name = input.value;
-  if (input.id === "cost-yield") state.yieldQuantity = input.value;
-  if (input.id === "cost-yield-unit") state.yieldUnit = input.value;
   if (input.id === "cost-margin") state.margin = input.value;
   if (input.id === "cost-actual-price") state.actualPrice = input.value;
   const ingredient = input.closest("[data-ingredient-id]");
@@ -340,10 +332,9 @@ function saveRecipe(panel) {
   const total = totals();
   const name = state.name.trim();
   if (!name) return setStatus(panel, "กรุณากรอกชื่อเมนูหรือชื่อสูตร", true);
-  if (total.yieldQuantity <= 0) return setStatus(panel, "จำนวนที่สูตรทำได้ต้องมากกว่า 0", true);
   if (total.suggestedPrice === null) return setStatus(panel, "เปอร์เซ็นต์กำไรต้องน้อยกว่า 100", true);
   const record = {
-    id: state.editingId || uid(), name, yieldQuantity: state.yieldQuantity, yieldUnit: state.yieldUnit,
+    id: state.editingId || uid(), name,
     margin: state.margin, actualPrice: state.actualPrice,
     ingredients: state.ingredients.map((item) => ({ ...item })), expenses: state.expenses.map((item) => ({ ...item })),
     recipeTotal: total.recipeTotal, unitCost: total.unitCost, suggestedPrice: total.suggestedPrice,
@@ -363,7 +354,6 @@ function loadRecipe(panel, recipe, duplicate = false) {
     ...state,
     editingId: duplicate ? null : recipe.id,
     name: duplicate ? `${recipe.name} (สำเนา)` : recipe.name,
-    yieldQuantity: String(recipe.yieldQuantity ?? 1), yieldUnit: recipe.yieldUnit || "ชิ้น",
     margin: String(recipe.margin ?? 40), actualPrice: String(recipe.actualPrice ?? ""),
     ingredients: (recipe.ingredients || []).map((item) => ({ ...item, id: uid() })),
     expenses: (recipe.expenses || []).map((item) => ({ ...item, id: uid() })),
@@ -403,7 +393,7 @@ function bindPanel(panel) {
     if (!input) return;
     if (input.id === "app-net" || input.id === "app-fee") return updateAppResult(panel);
     updateStateFromInput(input);
-    const isTextEntry = input.type !== "number" && input.id !== "cost-yield";
+    const isTextEntry = input.type !== "number";
     if (isTextEntry || event.isComposing) return;
     const selection = { id: input.id, ingredient: input.closest("[data-ingredient-id]")?.dataset.ingredientId, expense: input.closest("[data-expense-id]")?.dataset.expenseId, key: input.dataset.key };
     renderCostPage(panel, "cost");
