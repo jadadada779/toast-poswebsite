@@ -32,7 +32,10 @@ function addMobileAddButton(panel, label) {
   button.type = "button";
   button.className = "menu-ux-add";
   button.textContent = `＋ ${label}`;
-  button.addEventListener("click", () => form.scrollIntoView({ behavior: "smooth", block: "start" }));
+  button.addEventListener("click", () => {
+    const root = panel.closest("section");
+    if (root) scrollToElement(root, form);
+  });
   header.append(button);
 }
 
@@ -64,19 +67,42 @@ function formForTarget(root, target) {
   return panel.querySelector(".menu-ux-form") || directGrid(panel)?.firstElementChild || panel;
 }
 
+function isCompactLayout() {
+  return window.matchMedia("(max-width: 1279px)").matches;
+}
+
 function scrollToElement(root, element) {
   if (!element) return;
-  const nav = root.querySelector("nav[aria-label='ทางลัดหน้าจัดการเมนู']");
-  const offset = (nav?.getBoundingClientRect().height || 0) + 14;
-  const top = window.scrollY + element.getBoundingClientRect().top - offset;
-  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+
+  if (!isCompactLayout()) {
+    element.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  const performScroll = () => {
+    const nav = root.querySelector("nav[aria-label='ทางลัดหน้าจัดการเมนู']");
+    const offset = (nav?.getBoundingClientRect().height || 0) + 14;
+    const top = window.scrollY + element.getBoundingClientRect().top - offset;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  };
+
+  performScroll();
+  setTimeout(performScroll, 380);
 }
 
 function scrollToManagementTop(root) {
-  const nav = root.querySelector("nav[aria-label='ทางลัดหน้าจัดการเมนู']");
-  if (!nav) return;
-  const top = window.scrollY + nav.getBoundingClientRect().top - 6;
-  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  if (!isCompactLayout()) {
+    root.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  const performScroll = () => {
+    const top = window.scrollY + root.getBoundingClientRect().top - 8;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  };
+
+  performScroll();
+  setTimeout(performScroll, 380);
 }
 
 function watchSaveCompletion(button, root) {
@@ -88,7 +114,6 @@ function watchSaveCompletion(button, root) {
     if (returned) return;
     returned = true;
     scrollToManagementTop(root);
-    setTimeout(() => scrollToManagementTop(root), 320);
   };
 
   const fallback = setTimeout(returnToTop, 1400);
