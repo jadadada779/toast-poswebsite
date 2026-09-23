@@ -17810,44 +17810,6 @@ var calculateTotals = /* @__PURE__ */ __name22((subtotal, shippingFee, requested
   return { subtotal, manualDiscount, promotionDiscount, shippingFee, shippingDiscount, total: discountedSubtotal + shippingFee - shippingDiscount };
 }, "calculateTotals");
 
-var calculatePromotionDiscount = /* @__PURE__ */ __name22((items, rules, subtotal) => {
-  const activeRules = rules.filter((rule) => rule.enabled).sort((a, b) => (a.priority ?? a.id) - (b.priority ?? b.id));
-  let remaining = subtotal;
-  for (const rule of activeRules) {
-    let discount = 0;
-    if (rule.type === "flexible") {
-      const conditionCategories = rule.conditionCategories ?? [];
-      const conditionExcluded = rule.conditionExcludedMenuIds ?? [];
-      const targetCategories = rule.targetCategories ?? [];
-      const targetExcluded = rule.targetExcludedMenuIds ?? [];
-      const matches = (item, categories, excluded) => (categories.length === 0 || categories.includes(item.category)) && (!item.menuItemId || !excluded.includes(item.menuItemId));
-      const qualifyingTotal = items.filter((item) => matches(item, conditionCategories, conditionExcluded)).reduce((sum, item) => sum + item.lineTotal, 0);
-      const targetTotal = items.filter((item) => matches(item, targetCategories, targetExcluded)).reduce((sum, item) => sum + item.lineTotal, 0);
-      if (qualifyingTotal >= (rule.minSpend ?? 0) && targetTotal > 0) {
-        discount = rule.discountType === "percent" ? Math.floor(targetTotal * rule.discountValue / 100) : rule.discountValue;
-        if (rule.maxDiscount != null) discount = Math.min(discount, rule.maxDiscount);
-        discount = Math.min(discount, targetTotal);
-      }
-    }
-    if (rule.type === "min_spend" && (rule.minSpend ?? 0) > 0 && subtotal >= (rule.minSpend ?? 0)) discount = rule.discountAmount;
-    if (rule.type === "category_spend" && rule.targetCategory && (rule.minSpend ?? 0) > 0) {
-      const qualifyingCategories = (rule.qualifyingCategories?.length ?? 0) > 0 ? rule.qualifyingCategories : rule.qualifyingCategory ? [rule.qualifyingCategory] : [];
-      const qualifyingTotal = items.filter((item) => qualifyingCategories.includes(item.category)).reduce((sum, item) => sum + item.lineTotal, 0);
-      const targetTotal = items.filter((item) => item.category === rule.targetCategory).reduce((sum, item) => sum + item.lineTotal, 0);
-      if (qualifyingTotal >= (rule.minSpend ?? 0) && targetTotal > 0) discount = Math.min(rule.discountAmount, targetTotal);
-    }
-    if (rule.type === "bundle" && rule.firstMenuId) {
-      const firstQuantity = items.find((item) => item.menuItemId === rule.firstMenuId)?.quantity ?? 0;
-      const secondQuantity = rule.secondCategory ? items.filter((item) => item.category === rule.secondCategory).reduce((sum, item) => sum + item.quantity, 0) : rule.secondMenuId ? items.find((item) => item.menuItemId === rule.secondMenuId)?.quantity ?? 0 : 0;
-      if (firstQuantity > 0 && secondQuantity > 0) discount = rule.discountAmount * Math.min(firstQuantity, secondQuantity);
-    }
-    discount = Math.max(0, Math.min(discount, remaining));
-    if (discount > 0) remaining -= discount;
-    if (discount > 0 && rule.type === "flexible" && !rule.stackable) break;
-  }
-  return subtotal - remaining;
-}, "calculatePromotionDiscount");
-
 // Flexible promotions live in their own table so existing promotion data and
 // deployments continue to work without a separate D1 migration command.
 async function ensureAdvancedPromotions(db) {
@@ -17856,10 +17818,18 @@ async function ensureAdvancedPromotions(db) {
     name TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     minSpend INTEGER NOT NULL DEFAULT 0,
+    conditionMode TEXT NOT NULL DEFAULT 'spend',
     conditionCategories TEXT NOT NULL DEFAULT '[]',
     conditionExcludedMenuIds TEXT NOT NULL DEFAULT '[]',
+    conditionMenuIds TEXT NOT NULL DEFAULT '[]',
+    conditionToppingIds TEXT NOT NULL DEFAULT '[]',
+    conditionMinQuantity INTEGER NOT NULL DEFAULT 1,
+    targetMode TEXT NOT NULL DEFAULT 'categories',
     targetCategories TEXT NOT NULL DEFAULT '[]',
     targetExcludedMenuIds TEXT NOT NULL DEFAULT '[]',
+    targetMenuIds TEXT NOT NULL DEFAULT '[]',
+    targetToppingIds TEXT NOT NULL DEFAULT '[]',
+    applicationMode TEXT NOT NULL DEFAULT 'once',
     discountType TEXT NOT NULL DEFAULT 'fixed',
     discountValue INTEGER NOT NULL DEFAULT 0,
     maxDiscount INTEGER,
@@ -17868,6 +17838,26 @@ async function ensureAdvancedPromotions(db) {
     createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`).run();
+  const existingColumns = new Set((await rows(db, "PRAGMA table_info(advancedPromotions)")).map((column) => column.name));
+  const extraColumns = [
+    ["conditionMode", "TEXT NOT NULL DEFAULT 'spend'"],
+    ["conditionMenuIds", "TEXT NOT NULL DEFAULT '[]'"],
+    ["conditionToppingIds", "TEXT NOT NULL DEFAULT '[]'"],
+    ["conditionMinQuantity", "INTEGER NOT NULL DEFAULT 1"],
+    ["targetMode", "TEXT NOT NULL DEFAULT 'categories'"],
+    ["targetMenuIds", "TEXT NOT NULL DEFAULT '[]'"],
+    ["targetToppingIds", "TEXT NOT NULL DEFAULT '[]'"],
+    ["applicationMode", "TEXT NOT NULL DEFAULT 'once'"]
+  ];
+  for (const [name, definition] of extraColumns) {
+    if (!existingColumns.has(name)) {
+      try {
+        await db.prepare(`ALTER TABLE advancedPromotions ADD COLUMN ${name} ${definition}`).run();
+      } catch (error) {
+        if (!String(error?.message || error).toLowerCase().includes("duplicate column")) throw error;
+      }
+    }
+  }
 }
 
 function parseJsonArray(value) {
@@ -17886,8 +17876,12 @@ function withAdvancedPromotion(row) {
     stackable: Boolean(row.stackable),
     conditionCategories: parseJsonArray(row.conditionCategories),
     conditionExcludedMenuIds: parseJsonArray(row.conditionExcludedMenuIds).map(Number),
+    conditionMenuIds: parseJsonArray(row.conditionMenuIds).map(Number),
+    conditionToppingIds: parseJsonArray(row.conditionToppingIds).map(Number),
     targetCategories: parseJsonArray(row.targetCategories),
-    targetExcludedMenuIds: parseJsonArray(row.targetExcludedMenuIds).map(Number)
+    targetExcludedMenuIds: parseJsonArray(row.targetExcludedMenuIds).map(Number),
+    targetMenuIds: parseJsonArray(row.targetMenuIds).map(Number),
+    targetToppingIds: parseJsonArray(row.targetToppingIds).map(Number)
   };
 }
 
@@ -17902,17 +17896,36 @@ function normalizeAdvancedPromotion(input) {
   const cleanIds = (value) => Array.isArray(value) ? [...new Set(value.map(Number).filter((id) => Number.isInteger(id) && id > 0))] : [];
   const name = String(input?.name || "").trim().slice(0, 160);
   const discountType = input?.discountType === "percent" ? "percent" : "fixed";
+  const conditionMode = ["spend", "menu", "topping"].includes(input?.conditionMode) ? input.conditionMode : "spend";
+  const targetMode = ["categories", "menu", "topping_all", "topping_selected"].includes(input?.targetMode) ? input.targetMode : "categories";
+  const applicationMode = input?.applicationMode === "each" ? "each" : "once";
+  const conditionMenuIds = cleanIds(input?.conditionMenuIds);
+  const conditionToppingIds = cleanIds(input?.conditionToppingIds);
+  const targetMenuIds = cleanIds(input?.targetMenuIds);
+  const targetToppingIds = cleanIds(input?.targetToppingIds);
   const discountValue = Math.max(0, Math.trunc(Number(input?.discountValue) || 0));
   if (!name) throw new Error("กรุณาระบุชื่อโปรโมชั่น");
   if (discountValue <= 0 || discountType === "percent" && discountValue > 100) throw new Error("จำนวนส่วนลดไม่ถูกต้อง");
+  if (conditionMode === "menu" && !conditionMenuIds.length) throw new Error("กรุณาเลือกเมนูที่ทำให้โปรทำงาน");
+  if (conditionMode === "topping" && !conditionToppingIds.length) throw new Error("กรุณาเลือกท็อปปิ้งที่ทำให้โปรทำงาน");
+  if (targetMode === "menu" && !targetMenuIds.length) throw new Error("กรุณาเลือกเมนูที่ได้รับส่วนลด");
+  if (targetMode === "topping_selected" && !targetToppingIds.length) throw new Error("กรุณาเลือกท็อปปิ้งที่เข้าร่วมโปรโมชั่น");
   return {
     name,
     enabled: input?.enabled !== false,
     minSpend: Math.max(0, Math.trunc(Number(input?.minSpend) || 0)),
+    conditionMode,
     conditionCategories: cleanCategories(input?.conditionCategories),
     conditionExcludedMenuIds: cleanIds(input?.conditionExcludedMenuIds),
+    conditionMenuIds,
+    conditionToppingIds,
+    conditionMinQuantity: Math.max(1, Math.min(999, Math.trunc(Number(input?.conditionMinQuantity) || 1))),
+    targetMode,
     targetCategories: cleanCategories(input?.targetCategories),
     targetExcludedMenuIds: cleanIds(input?.targetExcludedMenuIds),
+    targetMenuIds,
+    targetToppingIds,
+    applicationMode,
     discountType,
     discountValue,
     maxDiscount: input?.maxDiscount === null || input?.maxDiscount === "" || input?.maxDiscount === void 0 ? null : Math.max(0, Math.trunc(Number(input.maxDiscount) || 0)),
@@ -17925,26 +17938,27 @@ async function handleAdvancedPromotionApi(request, db, url) {
   await ensureAdvancedPromotions(db);
   const idMatch = url.pathname.match(/^\/api\/advanced-promotions\/(\d+)$/);
   if (request.method === "GET" && url.pathname === "/api/advanced-promotions") {
-    const [rules, menus] = await Promise.all([
+    const [rules, menus, toppings] = await Promise.all([
       listAdvancedPromotions(db),
-      rows(db, "SELECT id, name, category, price FROM menuItems WHERE isActive = 1 ORDER BY category, sortOrder, id")
+      rows(db, "SELECT id, name, category, price FROM menuItems WHERE isActive = 1 ORDER BY category, sortOrder, id"),
+      rows(db, "SELECT id, name, price FROM customOptions WHERE type = 'topping' ORDER BY sortOrder, id")
     ]);
-    return Response.json({ rules, menus }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ rules, menus, toppings }, { headers: { "Cache-Control": "no-store" } });
   }
   if (request.method === "POST" && url.pathname === "/api/advanced-promotions") {
     const value = normalizeAdvancedPromotion(await request.json());
     const result = await db.prepare(`INSERT INTO advancedPromotions
-      (name, enabled, minSpend, conditionCategories, conditionExcludedMenuIds, targetCategories, targetExcludedMenuIds, discountType, discountValue, maxDiscount, stackable, priority)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(value.name, value.enabled ? 1 : 0, value.minSpend, JSON.stringify(value.conditionCategories), JSON.stringify(value.conditionExcludedMenuIds), JSON.stringify(value.targetCategories), JSON.stringify(value.targetExcludedMenuIds), value.discountType, value.discountValue, value.maxDiscount, value.stackable ? 1 : 0, value.priority).run();
+      (name, enabled, minSpend, conditionMode, conditionCategories, conditionExcludedMenuIds, conditionMenuIds, conditionToppingIds, conditionMinQuantity, targetMode, targetCategories, targetExcludedMenuIds, targetMenuIds, targetToppingIds, applicationMode, discountType, discountValue, maxDiscount, stackable, priority)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(value.name, value.enabled ? 1 : 0, value.minSpend, value.conditionMode, JSON.stringify(value.conditionCategories), JSON.stringify(value.conditionExcludedMenuIds), JSON.stringify(value.conditionMenuIds), JSON.stringify(value.conditionToppingIds), value.conditionMinQuantity, value.targetMode, JSON.stringify(value.targetCategories), JSON.stringify(value.targetExcludedMenuIds), JSON.stringify(value.targetMenuIds), JSON.stringify(value.targetToppingIds), value.applicationMode, value.discountType, value.discountValue, value.maxDiscount, value.stackable ? 1 : 0, value.priority).run();
     return Response.json({ id: idFrom(result) }, { status: 201 });
   }
   if (idMatch && request.method === "PUT") {
     const value = normalizeAdvancedPromotion(await request.json());
     await db.prepare(`UPDATE advancedPromotions SET
-      name = ?, enabled = ?, minSpend = ?, conditionCategories = ?, conditionExcludedMenuIds = ?, targetCategories = ?, targetExcludedMenuIds = ?, discountType = ?, discountValue = ?, maxDiscount = ?, stackable = ?, priority = ?, updatedAt = CURRENT_TIMESTAMP
+      name = ?, enabled = ?, minSpend = ?, conditionMode = ?, conditionCategories = ?, conditionExcludedMenuIds = ?, conditionMenuIds = ?, conditionToppingIds = ?, conditionMinQuantity = ?, targetMode = ?, targetCategories = ?, targetExcludedMenuIds = ?, targetMenuIds = ?, targetToppingIds = ?, applicationMode = ?, discountType = ?, discountValue = ?, maxDiscount = ?, stackable = ?, priority = ?, updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?`)
-      .bind(value.name, value.enabled ? 1 : 0, value.minSpend, JSON.stringify(value.conditionCategories), JSON.stringify(value.conditionExcludedMenuIds), JSON.stringify(value.targetCategories), JSON.stringify(value.targetExcludedMenuIds), value.discountType, value.discountValue, value.maxDiscount, value.stackable ? 1 : 0, value.priority, Number(idMatch[1])).run();
+      .bind(value.name, value.enabled ? 1 : 0, value.minSpend, value.conditionMode, JSON.stringify(value.conditionCategories), JSON.stringify(value.conditionExcludedMenuIds), JSON.stringify(value.conditionMenuIds), JSON.stringify(value.conditionToppingIds), value.conditionMinQuantity, value.targetMode, JSON.stringify(value.targetCategories), JSON.stringify(value.targetExcludedMenuIds), JSON.stringify(value.targetMenuIds), JSON.stringify(value.targetToppingIds), value.applicationMode, value.discountType, value.discountValue, value.maxDiscount, value.stackable ? 1 : 0, value.priority, Number(idMatch[1])).run();
     return Response.json({ ok: true });
   }
   if (idMatch && request.method === "DELETE") {
@@ -18041,9 +18055,7 @@ function createCloudflareRouter(env) {
     }, "detail"),
     create: /* @__PURE__ */ __name22(async (input) => {
       const normalized = input.items.map((item) => ({ ...item, lineTotal: item.unitPrice * item.quantity }));
-      const subtotal = normalized.reduce((sum, item) => sum + item.lineTotal, 0);
-      const promotionDiscount = calculatePromotionDiscount(normalized, await promotions.list(), subtotal);
-      const totals = calculateTotals(subtotal, input.shippingFee, input.manualDiscount, promotionDiscount);
+      const totals = calculateTotals(normalized.reduce((sum, item) => sum + item.lineTotal, 0), input.shippingFee, input.manualDiscount, input.promotionDiscount);
       const result = await db.prepare("INSERT INTO orders (code, subtotal, manualDiscount, promotionDiscount, shippingLabel, shippingFee, shippingDiscount, total) VALUES ('PENDING', ?, ?, ?, ?, ?, ?, ?)").bind(totals.subtotal, totals.manualDiscount, totals.promotionDiscount, input.shippingLabel, totals.shippingFee, totals.shippingDiscount, totals.total).run();
       const orderId = idFrom(result);
       const code = `TP-${String(orderId).padStart(4, "0")}`;
