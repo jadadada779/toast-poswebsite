@@ -6,7 +6,7 @@ const categoryIcons = {
   other: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h11l-1 12H7L6 7Zm2-3 7 3M17 9h2a2 2 0 0 1 0 4h-2"/></svg>`
 };
 const tagIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 8-8h7v7l-8 8-7-7Zm11-4h.01"/></svg>`;
-let store = { rules: [], menus: [] };
+let store = { rules: [], menus: [], toppings: [] };
 let editingRule = null;
 let currentStep = 1;
 
@@ -17,7 +17,9 @@ const escapeHtml = (value) => String(value ?? "")
 function blankRule() {
   return {
     name: "", enabled: true, minSpend: 50,
+    conditionMode: "spend", conditionMenuIds: [], conditionToppingIds: [], conditionMinQuantity: 1,
     conditionCategories: ["other"], conditionExcludedMenuIds: [],
+    targetMode: "categories", targetMenuIds: [], targetToppingIds: [], applicationMode: "once",
     targetCategories: ["other"], targetExcludedMenuIds: [],
     discountType: "fixed", discountValue: 10, maxDiscount: null,
     stackable: true, priority: 100
@@ -34,15 +36,28 @@ function categoryCards(name, selected = []) {
     </label>`).join("");
 }
 
-function menuSelector(name, selected = [], searchId) {
+function menuSelector(name, selected = [], searchId, hint = "เลือกเมนู") {
   if (!store.menus.length) return `<div class="ap-no-menu">ยังไม่มีเมนูสำหรับเลือก</div>`;
   return `
-    <div class="ap-menu-tools"><span>เลือกเฉพาะรายการที่ต้องการยกเว้น</span><input id="${searchId}" class="ap-search" type="search" placeholder="ค้นหาชื่อเมนู"></div>
+    <div class="ap-menu-tools"><span>${hint}</span><input id="${searchId}" class="ap-search" type="search" placeholder="ค้นหาชื่อเมนู"></div>
     <div class="ap-menu-list" data-menu-list="${searchId}">
       ${store.menus.map((menu) => `
         <label class="ap-menu-item" data-search="${escapeHtml(menu.name.toLowerCase())}">
           <input type="checkbox" name="${name}" value="${menu.id}" ${selected.includes(Number(menu.id)) ? "checked" : ""}>
           <span class="ap-menu-check">✓</span><span class="ap-menu-name">${escapeHtml(menu.name)}<small>${categoryLabels[menu.category] ?? menu.category}</small></span><strong>฿${menu.price}</strong>
+        </label>`).join("")}
+    </div>`;
+}
+
+function toppingSelector(name, selected = [], searchId, hint = "เลือกท็อปปิ้ง") {
+  if (!store.toppings.length) return `<div class="ap-no-menu">ยังไม่มีท็อปปิ้งสำหรับเลือก</div>`;
+  return `
+    <div class="ap-menu-tools"><span>${hint}</span><input id="${searchId}" class="ap-search" type="search" placeholder="ค้นหาท็อปปิ้ง"></div>
+    <div class="ap-menu-list" data-menu-list="${searchId}">
+      ${store.toppings.map((topping) => `
+        <label class="ap-menu-item" data-search="${escapeHtml(topping.name.toLowerCase())}">
+          <input type="checkbox" name="${name}" value="${topping.id}" ${selected.includes(Number(topping.id)) ? "checked" : ""}>
+          <span class="ap-menu-check">✓</span><span class="ap-menu-name">${escapeHtml(topping.name)}<small>ท็อปปิ้ง</small></span><strong>฿${topping.price}</strong>
         </label>`).join("")}
     </div>`;
 }
@@ -55,7 +70,21 @@ function ruleDescription(rule) {
   const discount = rule.discountType === "percent"
     ? `${rule.discountValue}%${rule.maxDiscount != null ? ` สูงสุด ฿${rule.maxDiscount}` : ""}`
     : `฿${rule.discountValue}`;
-  return `${categoryText(rule.conditionCategories)} ครบ ฿${rule.minSpend} → ลด ${categoryText(rule.targetCategories)} ${discount}`;
+  const itemNames = (values, source) => (values || []).map((id) => source.find((item) => Number(item.id) === Number(id))?.name).filter(Boolean).join(", ");
+  const condition = rule.conditionMode === "menu"
+    ? `ซื้อ ${itemNames(rule.conditionMenuIds, store.menus) || "เมนูที่กำหนด"} ครบ ${rule.conditionMinQuantity || 1} รายการ`
+    : rule.conditionMode === "topping"
+      ? `ซื้อท็อปปิ้ง ${itemNames(rule.conditionToppingIds, store.toppings) || "ที่กำหนด"} ครบ ${rule.conditionMinQuantity || 1} รายการ`
+      : `${categoryText(rule.conditionCategories)} ครบ ฿${rule.minSpend}`;
+  const target = rule.targetMode === "menu"
+    ? itemNames(rule.targetMenuIds, store.menus) || "เมนูที่เลือก"
+    : rule.targetMode === "topping_all"
+      ? "ท็อปปิ้งทั้งหมด"
+      : rule.targetMode === "topping_selected"
+        ? `ท็อปปิ้ง ${itemNames(rule.targetToppingIds, store.toppings) || "ที่เข้าร่วม"}`
+        : categoryText(rule.targetCategories);
+  const application = String(rule.targetMode || "").startsWith("topping_") ? (rule.applicationMode === "each" ? " ทุกรายการที่เข้าเงื่อนไข" : " 1 รายการราคาต่ำสุด") : "";
+  return `${condition} → ลด ${target} ${discount}${application}`;
 }
 
 function showNotice(message, type = "success") {
@@ -89,11 +118,13 @@ function renderPanel(panel) {
 
 function ruleCard(rule) {
   const exclusions = new Set([...rule.conditionExcludedMenuIds, ...rule.targetExcludedMenuIds]).size;
+  const conditionLabel = rule.conditionMode === "menu" ? `ซื้อเมนู ${rule.conditionMinQuantity || 1} รายการ` : rule.conditionMode === "topping" ? `ซื้อท็อปปิ้ง ${rule.conditionMinQuantity || 1} รายการ` : `ครบ ฿${rule.minSpend}`;
+  const targetLabel = String(rule.targetMode || "").startsWith("topping_") ? "ท็อปปิ้ง" : rule.targetMode === "menu" ? "เมนูที่เลือก" : "ส่วนลด";
   return `
     <article class="ap-rule-card ${rule.enabled ? "" : "is-disabled"}">
       <div class="ap-rule-top"><span class="ap-status ${rule.enabled ? "on" : "off"}"><i></i>${rule.enabled ? "เปิดใช้งาน" : "ปิดอยู่"}</span><span class="ap-priority">ลำดับ ${rule.priority}</span></div>
       <h4>${escapeHtml(rule.name)}</h4>
-      <div class="ap-rule-flow"><span class="ap-flow-icon">${categoryIcons[rule.conditionCategories?.[0]] ?? categoryIcons.shop}</span><b>ครบ ฿${rule.minSpend}</b><em>→</em><span class="ap-flow-icon">${tagIcon}</span><b>${rule.discountType === "percent" ? `${rule.discountValue}%` : `฿${rule.discountValue}`}</b></div>
+      <div class="ap-rule-flow"><span class="ap-flow-icon">${categoryIcons[rule.conditionCategories?.[0]] ?? categoryIcons.custom}</span><b>${conditionLabel}</b><em>→</em><span class="ap-flow-icon">${tagIcon}</span><b>${targetLabel} ${rule.discountType === "percent" ? `${rule.discountValue}%` : `฿${rule.discountValue}`}</b></div>
       <p>${escapeHtml(ruleDescription(rule))}</p>
       <div class="ap-rule-meta"><span>${exclusions ? `⊘ ยกเว้น ${exclusions} เมนู` : "✓ ไม่มีเมนูยกเว้น"}</span><span>${rule.stackable ? "＋ ใช้ร่วมกับโปรอื่นได้" : "▣ ใช้โปรนี้โปรเดียว"}</span></div>
       <div class="ap-rule-actions"><button data-action="toggle" data-id="${rule.id}">${rule.enabled ? "ปิดชั่วคราว" : "เปิดใช้งาน"}</button><button class="primary" data-action="edit" data-id="${rule.id}">แก้ไข</button><button class="danger" title="ลบ" data-action="delete" data-id="${rule.id}">⌫</button></div>
@@ -110,16 +141,31 @@ function renderWizard(host, rule) {
   const scope = (title, prefix, categories, excluded, explanation) => `
     <section class="ap-scope"><h4>${title}</h4><p>${explanation}</p>
       <div class="ap-category-grid">${categoryCards(prefix + "Categories", categories)}</div>
-      <details class="ap-exclude" ${excluded.length ? "open" : ""}><summary><div><strong>${prefix === "condition" ? "ยกเว้นเมนูออกจากยอดขั้นต่ำ" : "ยกเว้นเมนูไม่ให้ได้รับส่วนลด"}</strong></div><b class="ap-count">${excluded.length}</b><i>⌄</i></summary>${menuSelector(prefix + "ExcludedMenuIds", excluded, prefix + "-search")}</details>
+      <details class="ap-exclude" ${excluded.length ? "open" : ""}><summary><div><strong>${prefix === "condition" ? "ยกเว้นเมนูออกจากยอดขั้นต่ำ" : "ยกเว้นเมนูไม่ให้ได้รับส่วนลด"}</strong></div><b class="ap-count">${excluded.length}</b><i>⌄</i></summary>${menuSelector(prefix + "ExcludedMenuIds", excluded, prefix + "-search", "เลือกรายการที่ต้องการยกเว้น")}</details>
     </section>`;
+  const modeOption = (value, current, label) => `<option value="${value}" ${value === current ? "selected" : ""}>${label}</option>`;
   host.innerHTML = `<div class="ap-overlay ap-single" role="dialog" aria-modal="true" aria-labelledby="ap-editor-title">
     <form class="ap-wizard">
       <header class="ap-wizard-head"><div><span>จัดการโปรโมชั่น</span><h3 id="ap-editor-title">${rule.id ? "แก้ไขโปรโมชั่น" : "เพิ่มโปรโมชั่น"}</h3></div><button type="button" class="ap-close" data-close aria-label="ปิด">×</button></header>
       <main class="ap-wizard-body">
         <label class="ap-field"><span>ชื่อโปรโมชั่น *</span><input name="name" required maxlength="160" value="${escapeHtml(rule.name)}" placeholder="เช่น เครื่องดื่มครบ 50 ลด 10"></label>
-        <div class="ap-overview"><label class="ap-field"><span>ยอดขั้นต่ำ (บาท)</span><input type="number" name="minSpend" min="0" step="1" required value="${rule.minSpend}"></label><label class="ap-field"><span>ลำดับการใช้</span><input type="number" name="priority" min="1" max="9999" step="1" required value="${rule.priority}"><small>เลขน้อยคำนวณก่อน</small></label>
+        <div class="ap-overview"><label class="ap-field"><span>ลำดับการคำนวณโปรโมชั่น</span><input type="number" name="priority" min="1" max="9999" step="1" required value="${rule.priority}"><small>เลขน้อยจะถูกตรวจและคำนวณก่อน</small></label>
         <div class="ap-setting-list"><label><span class="ap-toggle"><input type="checkbox" name="enabled" ${rule.enabled ? "checked" : ""}><i></i></span><div><strong>เปิดใช้งาน</strong></div></label><label><span class="ap-toggle"><input type="checkbox" name="stackable" ${rule.stackable ? "checked" : ""}><i></i></span><div><strong>ใช้ร่วมกับโปรถัดไปได้</strong><small>หากปิด จะหยุดโปรลำดับถัดไปเมื่อโปรนี้ทำงาน</small></div></label></div></div>
-        <div class="ap-scopes">${scope("หมวดที่ใช้คำนวณยอดขั้นต่ำ", "condition", rule.conditionCategories, rule.conditionExcludedMenuIds, "รวมราคาสินค้าในหมวดที่เลือกเพื่อตรวจยอดขั้นต่ำ")}${scope("หมวดที่ได้รับส่วนลด", "target", rule.targetCategories, rule.targetExcludedMenuIds, "หักส่วนลดเฉพาะสินค้าในหมวดที่เลือก")}</div>
+        <section class="ap-mode-box"><h4>1. เงื่อนไขที่ทำให้โปรทำงาน</h4>
+          <label class="ap-field"><span>ประเภทเงื่อนไข</span><select name="conditionMode">${modeOption("spend", rule.conditionMode || "spend", "ซื้อครบยอด")}${modeOption("menu", rule.conditionMode, "ซื้อเมนูที่กำหนด")}${modeOption("topping", rule.conditionMode, "ซื้อท็อปปิ้งที่กำหนด")}</select></label>
+          <div data-condition-panel="spend"> <label class="ap-field"><span>ยอดขั้นต่ำ (บาท)</span><input type="number" name="minSpend" min="0" step="1" required value="${rule.minSpend}"></label>${scope("หมวดที่ใช้คำนวณยอดขั้นต่ำ", "condition", rule.conditionCategories, rule.conditionExcludedMenuIds, "รวมราคาสินค้าในหมวดที่เลือกเพื่อตรวจยอดขั้นต่ำ")}</div>
+          <div data-condition-panel="menu">${menuSelector("conditionMenuIds", rule.conditionMenuIds || [], "condition-menu-search", "เลือกเมนูที่ทำให้โปรทำงาน")}</div>
+          <div data-condition-panel="topping">${toppingSelector("conditionToppingIds", rule.conditionToppingIds || [], "condition-topping-search", "เลือกท็อปปิ้งที่ทำให้โปรทำงาน")}</div>
+          <label class="ap-field" data-condition-quantity><span>จำนวนขั้นต่ำ</span><input type="number" name="conditionMinQuantity" min="1" max="999" step="1" value="${rule.conditionMinQuantity || 1}"><small>นับรวมตามจำนวนสินค้าในออเดอร์</small></label>
+        </section>
+        <section class="ap-mode-box"><h4>2. สินค้าที่ได้รับส่วนลด</h4>
+          <label class="ap-field"><span>ขอบเขตส่วนลด</span><select name="targetMode">${modeOption("categories", rule.targetMode || "categories", "ลดตามหมวดสินค้า")}${modeOption("menu", rule.targetMode, "ลดเฉพาะเมนูที่เลือก")}${modeOption("topping_all", rule.targetMode, "ลดท็อปปิ้งทั้งหมด")}${modeOption("topping_selected", rule.targetMode, "ลดเฉพาะท็อปปิ้งที่เข้าร่วม")}</select></label>
+          <div data-target-panel="categories">${scope("หมวดที่ได้รับส่วนลด", "target", rule.targetCategories, rule.targetExcludedMenuIds, "หักส่วนลดเฉพาะสินค้าในหมวดที่เลือก")}</div>
+          <div data-target-panel="menu">${menuSelector("targetMenuIds", rule.targetMenuIds || [], "target-menu-search", "เลือกเมนูที่ได้รับส่วนลด")}</div>
+          <div data-target-panel="topping_all" class="ap-mode-note">ท็อปปิ้งทุกชนิดในออเดอร์สามารถได้รับส่วนลด</div>
+          <div data-target-panel="topping_selected">${toppingSelector("targetToppingIds", rule.targetToppingIds || [], "target-topping-search", "เลือกท็อปปิ้งที่เข้าร่วมโปรโมชั่น")}</div>
+          <label class="ap-field" data-topping-application><span>ใช้ส่วนลดกับท็อปปิ้ง</span><select name="applicationMode">${modeOption("once", rule.applicationMode || "once", "1 รายการราคาต่ำสุด")}${modeOption("each", rule.applicationMode, "ทุกรายการที่เข้าเงื่อนไข")}</select><small>แบบทุกรายการ: ส่วนลดจำนวนเงินจะคิดต่อท็อปปิ้งแต่ละรายการ</small></label>
+        </section>
         <section class="ap-discount-box"><h4>รูปแบบส่วนลด</h4><div class="ap-discount-grid"><div><span class="ap-label">เลือกวิธีลดราคา</span><div class="ap-segment"><label class="${rule.discountType === "fixed" ? "selected" : ""}"><input type="radio" name="discountType" value="fixed" ${rule.discountType === "fixed" ? "checked" : ""}>ลดเป็นบาท</label><label class="${rule.discountType === "percent" ? "selected" : ""}"><input type="radio" name="discountType" value="percent" ${rule.discountType === "percent" ? "checked" : ""}>ลดเป็นเปอร์เซ็นต์</label></div></div>
         <label class="ap-field"><span>จำนวนส่วนลด *</span><div class="ap-input-addon"><input type="number" name="discountValue" min="1" step="1" ${rule.discountType === "percent" ? 'max="100"' : ''} required value="${rule.discountValue}"><i data-discount-unit>${rule.discountType === "fixed" ? "บาท" : "%"}</i></div></label>
         <label class="ap-field ap-max-field"><span>ส่วนลดสูงสุด (เว้นว่างได้)</span><div class="ap-input-addon"><input type="number" name="maxDiscount" min="0" step="1" value="${rule.maxDiscount ?? ""}" placeholder="ไม่จำกัด"><i>บาท</i></div></label></div></section>
@@ -151,19 +197,38 @@ function bindWizard(host) {
     form.querySelector(".ap-max-field").classList.toggle("is-muted", input.value !== "percent"); updateLiveSummary(form);
   }));
   host.querySelectorAll("input").forEach((input) => input.addEventListener("input", () => updateLiveSummary(form)));
+  host.querySelectorAll("select").forEach((select) => select.addEventListener("change", () => { syncModePanels(form); updateLiveSummary(form); }));
   host.querySelectorAll(".ap-search").forEach((input) => input.addEventListener("input", () => {
     const query = input.value.trim().toLowerCase();
     host.querySelectorAll(`[data-menu-list="${input.id}"] .ap-menu-item`).forEach((item) => item.hidden = !item.dataset.search.includes(query));
   }));
+  syncModePanels(form);
   form.addEventListener("submit", saveRule);
+}
+
+function syncModePanels(form) {
+  const conditionMode = form.elements.conditionMode?.value || "spend";
+  const targetMode = form.elements.targetMode?.value || "categories";
+  form.querySelectorAll("[data-condition-panel]").forEach((panel) => panel.hidden = panel.dataset.conditionPanel !== conditionMode);
+  form.querySelectorAll("[data-target-panel]").forEach((panel) => panel.hidden = panel.dataset.targetPanel !== targetMode);
+  const quantity = form.querySelector("[data-condition-quantity]");
+  if (quantity) quantity.hidden = conditionMode === "spend";
+  const application = form.querySelector("[data-topping-application]");
+  if (application) application.hidden = !targetMode.startsWith("topping_");
 }
 
 function formPayload(form) {
   const values = new FormData(form);
   return {
     name: String(values.get("name") ?? "").trim(), minSpend: Number(values.get("minSpend")), priority: Number(values.get("priority")),
+    conditionMode: values.get("conditionMode") || "spend",
     conditionCategories: values.getAll("conditionCategories"), conditionExcludedMenuIds: values.getAll("conditionExcludedMenuIds").map(Number),
+    conditionMenuIds: values.getAll("conditionMenuIds").map(Number), conditionToppingIds: values.getAll("conditionToppingIds").map(Number),
+    conditionMinQuantity: Number(values.get("conditionMinQuantity") || 1),
+    targetMode: values.get("targetMode") || "categories",
     targetCategories: values.getAll("targetCategories"), targetExcludedMenuIds: values.getAll("targetExcludedMenuIds").map(Number),
+    targetMenuIds: values.getAll("targetMenuIds").map(Number), targetToppingIds: values.getAll("targetToppingIds").map(Number),
+    applicationMode: values.get("applicationMode") || "once",
     discountType: values.get("discountType"), discountValue: Number(values.get("discountValue")),
     maxDiscount: values.get("maxDiscount") === "" ? null : Number(values.get("maxDiscount")),
     enabled: values.has("enabled"), stackable: values.has("stackable")
@@ -217,6 +282,10 @@ async function saveRule(event) {
   const form = event.currentTarget;
   const payload = formPayload(form);
   if (!payload.name) { goStep(1, form); setTimeout(() => document.querySelector('[name="name"]')?.reportValidity(), 0); return; }
+  if (payload.conditionMode === "menu" && !payload.conditionMenuIds.length) { showNotice("กรุณาเลือกเมนูที่ทำให้โปรทำงาน", "error"); return; }
+  if (payload.conditionMode === "topping" && !payload.conditionToppingIds.length) { showNotice("กรุณาเลือกท็อปปิ้งที่ทำให้โปรทำงาน", "error"); return; }
+  if (payload.targetMode === "menu" && !payload.targetMenuIds.length) { showNotice("กรุณาเลือกเมนูที่ได้รับส่วนลด", "error"); return; }
+  if (payload.targetMode === "topping_selected" && !payload.targetToppingIds.length) { showNotice("กรุณาเลือกท็อปปิ้งที่เข้าร่วมโปรโมชั่น", "error"); return; }
   if (!payload.discountValue || payload.discountValue < 1) { showNotice("กรุณาระบุจำนวนส่วนลด", "error"); goStep(3, form); return; }
   const button = form.querySelector(".ap-save");
   button.disabled = true; button.textContent = "กำลังบันทึก...";
@@ -293,8 +362,8 @@ function installStyles() {
     .ap-step-title>span{width:35px;height:35px;border-radius:8px;background:#efe4cc;color:#664b1e}
     .ap-step-title h4{font-size:17px}.ap-step-title p{font-size:12px;color:#7d6f5a}
     .ap-field{gap:7px;margin-bottom:16px;font-size:13px;font-weight:600}
-    .ap-field input,.ap-search{height:45px;border-color:#cfc6b8;border-radius:7px;padding:0 12px;background:#fff;font:400 14px "Sarabun","Noto Sans Thai",sans-serif}
-    .ap-field input:focus,.ap-search:focus{border-color:#9c793d;box-shadow:0 0 0 2px #9c793d1f}
+    .ap-field input,.ap-field select,.ap-search{height:45px;border:1px solid #cfc6b8;border-radius:7px;padding:0 12px;background:#fff;color:#382f23;font:400 14px "Sarabun","Noto Sans Thai",sans-serif;outline:none}
+    .ap-field input:focus,.ap-field select:focus,.ap-search:focus{border-color:#9c793d;box-shadow:0 0 0 2px #9c793d1f}
     .ap-input-addon{border-color:#cfc6b8;border-radius:7px}
     .ap-input-addon i{background:#f2eee7;color:#6e6250;font-size:12px}
     .ap-category{min-height:78px;border:1px solid #d9d1c4;border-radius:9px;padding:11px;background:#fff}
@@ -342,10 +411,17 @@ function installStyles() {
     .ap-single .ap-wizard-head{background:#fffaf0;color:#392c20;border-bottom:1px solid #e4d7bc}
     .ap-single .ap-wizard-head span{color:#786544}.ap-single .ap-close{color:#654a26}
     .ap-single .ap-wizard-body{background:#fffdf8}
-    .ap-overview{display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:20px}
+    .ap-overview{display:grid;grid-template-columns:1fr 1.5fr;gap:20px}
     .ap-single .ap-setting-list{margin:0 0 18px;gap:6px}
     .ap-single .ap-setting-list>label{padding:8px;border:0;background:transparent}
     .ap-scopes{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    .ap-mode-box{margin:18px 0;padding:16px;border:1px solid #d9c8a5;border-radius:10px;background:#fff}
+    .ap-mode-box>h4{margin:0 0 14px;font-size:16px;font-weight:650}
+    .ap-mode-box>[data-condition-panel],.ap-mode-box>[data-target-panel]{margin-top:8px}
+    .ap-mode-box>[hidden],.ap-field[hidden]{display:none!important}
+    .ap-mode-box>.ap-menu-tools{border:1px solid #e5ded3;border-bottom:0;border-radius:8px 8px 0 0}
+    .ap-mode-box>.ap-menu-list{padding:0 12px 12px;border:1px solid #e5ded3;border-top:0;border-radius:0 0 8px 8px}
+    .ap-mode-note{padding:14px;border:1px solid #cfe0ce;border-radius:8px;background:#f0f7ef;color:#486247;font-size:13px}
     .ap-scope{min-width:0;border:1px solid #d9c8a5;border-radius:10px;padding:16px;background:#fff}
     .ap-scope h4,.ap-discount-box h4{margin:0 0 8px;font-size:16px;font-weight:600}
     .ap-scope>p{font-size:13px;color:#786e5e;margin:0 0 14px}
@@ -370,7 +446,7 @@ function installStyles() {
     .ap-single .ap-wizard-foot{justify-content:flex-end;flex-shrink:0}
     .ap-single button{min-height:44px}
     .ap-single label:focus-within{outline:2px solid #a77a30;outline-offset:2px}
-    @media(max-width:720px){.ap-toolbar{align-items:stretch;flex-direction:column;padding:14px}.ap-toolbar-copy h2{font-size:17px}.ap-main-button{width:100%}.ap-scopes,.ap-overview,.ap-discount-grid{grid-template-columns:1fr;gap:12px}.ap-single .ap-wizard{max-height:96dvh}.ap-single .ap-scope{padding:12px}.ap-single .ap-category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.ap-single .ap-setting-list{margin-bottom:8px}.ap-single .ap-field input{min-width:0}}
+    @media(max-width:720px){.ap-toolbar{align-items:stretch;flex-direction:column;padding:14px}.ap-toolbar-copy h2{font-size:17px}.ap-main-button{width:100%}.ap-scopes,.ap-overview,.ap-discount-grid{grid-template-columns:1fr;gap:12px}.ap-single .ap-wizard{max-height:96dvh}.ap-single .ap-scope,.ap-mode-box{padding:12px}.ap-single .ap-category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.ap-single .ap-setting-list{margin-bottom:8px}.ap-single .ap-field input,.ap-single .ap-field select{min-width:0;font-size:16px}}
   `;
   document.head.appendChild(layout);
 }
