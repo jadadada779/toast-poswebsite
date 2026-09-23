@@ -51,13 +51,9 @@
       const quantity = Math.max(1, Math.trunc(number(item.quantity) || 1));
       const selected = itemToppings(item);
       for (let count = 0; count < quantity; count += 1) {
-        let freeFiveUsed = false;
         for (const name of selected) {
-          const listedPrice = number(maps.byName.get(name)?.price);
-          const price = item.breadType && listedPrice === 5 && !freeFiveUsed ? 0 : listedPrice;
-          if (item.breadType && listedPrice === 5 && !freeFiveUsed) freeFiveUsed = true;
           if (names && !names.has(name)) continue;
-          units.push(price);
+          units.push(number(maps.byName.get(name)?.price));
         }
       }
     }
