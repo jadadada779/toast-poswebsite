@@ -120,10 +120,10 @@
         if (qualifying >= number(rule.minSpend) && eligible > 0) discount = Math.min(number(rule.discountAmount), eligible);
       }
       if (rule.type === "bundle" && rule.firstMenuId) {
-        const first = cart.find((item) => item.menuItemId === rule.firstMenuId)?.quantity ?? 0;
+        const first = cart.find((item) => Number(item.menuItemId) === Number(rule.firstMenuId))?.quantity ?? 0;
         const second = rule.secondCategory
           ? cart.filter((item) => item.category === rule.secondCategory).reduce((sum, item) => sum + number(item.quantity), 0)
-          : rule.secondMenuId ? cart.find((item) => item.menuItemId === rule.secondMenuId)?.quantity ?? 0 : 0;
+          : rule.secondMenuId ? cart.find((item) => Number(item.menuItemId) === Number(rule.secondMenuId))?.quantity ?? 0 : 0;
         if (first > 0 && second > 0) discount = number(rule.discountAmount) * Math.min(first, second);
       }
       discount = Math.max(0, Math.min(discount, remaining));

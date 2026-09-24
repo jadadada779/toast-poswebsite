@@ -149,7 +149,7 @@ function renderWizard(host, rule) {
       <header class="ap-wizard-head"><div><span>จัดการโปรโมชั่น</span><h3 id="ap-editor-title">${rule.id ? "แก้ไขโปรโมชั่น" : "เพิ่มโปรโมชั่น"}</h3></div><button type="button" class="ap-close" data-close aria-label="ปิด">×</button></header>
       <main class="ap-wizard-body">
         <label class="ap-field"><span>ชื่อโปรโมชั่น *</span><input name="name" required maxlength="160" value="${escapeHtml(rule.name)}" placeholder="เช่น เครื่องดื่มครบ 50 ลด 10"></label>
-        <div class="ap-overview"><label class="ap-field"><span>ลำดับการคำนวณโปรโมชั่น</span><input type="number" name="priority" min="1" max="9999" step="1" required value="${rule.priority}"><small>เลขน้อยจะถูกตรวจและคำนวณก่อน</small></label>
+        <div class="ap-overview"><label class="ap-field"><span>ลำดับการคำนวณโปรโมชั่น</span><input type="number" name="priority" min="1" max="9999" step="1" required value="${rule.priority}"><small>เลขน้อยจะถูกตรวจและคำนวณก่อน เช่น ลำดับ 1 ก่อนลำดับ 2 หากโปรก่อนหน้าปิด “ใช้ร่วมกับโปรถัดไปได้” และโปรนั้นทำงาน ระบบจะหยุดตรวจโปรลำดับต่อไป</small></label>
         <div class="ap-setting-list"><label><span class="ap-toggle"><input type="checkbox" name="enabled" ${rule.enabled ? "checked" : ""}><i></i></span><div><strong>เปิดใช้งาน</strong></div></label><label><span class="ap-toggle"><input type="checkbox" name="stackable" ${rule.stackable ? "checked" : ""}><i></i></span><div><strong>ใช้ร่วมกับโปรถัดไปได้</strong><small>หากปิด จะหยุดโปรลำดับถัดไปเมื่อโปรนี้ทำงาน</small></div></label></div></div>
         <section class="ap-mode-box"><h4>1. เงื่อนไขที่ทำให้โปรทำงาน</h4>
           <label class="ap-field"><span>ประเภทเงื่อนไข</span><select name="conditionMode">${modeOption("spend", rule.conditionMode || "spend", "ซื้อครบยอด")}${modeOption("menu", rule.conditionMode, "ซื้อเมนูที่กำหนด")}${modeOption("topping", rule.conditionMode, "ซื้อท็อปปิ้งที่กำหนด")}</select></label>
@@ -164,7 +164,11 @@ function renderWizard(host, rule) {
           <div data-target-panel="menu">${menuSelector("targetMenuIds", rule.targetMenuIds || [], "target-menu-search", "เลือกเมนูที่ได้รับส่วนลด")}</div>
           <div data-target-panel="topping_all" class="ap-mode-note">ท็อปปิ้งทุกชนิดในออเดอร์สามารถได้รับส่วนลด</div>
           <div data-target-panel="topping_selected">${toppingSelector("targetToppingIds", rule.targetToppingIds || [], "target-topping-search", "เลือกท็อปปิ้งที่เข้าร่วมโปรโมชั่น")}</div>
-          <label class="ap-field" data-topping-application><span>ใช้ส่วนลดกับท็อปปิ้ง</span><select name="applicationMode">${modeOption("once", rule.applicationMode || "once", "1 รายการราคาต่ำสุด")}${modeOption("each", rule.applicationMode, "ทุกรายการที่เข้าเงื่อนไข")}</select><small>แบบทุกรายการ: ส่วนลดจำนวนเงินจะคิดต่อท็อปปิ้งแต่ละรายการ</small></label>
+          <label class="ap-field" data-topping-application><span>ใช้ส่วนลดกับท็อปปิ้ง</span><select name="applicationMode">${modeOption("once", rule.applicationMode || "once", "1 รายการราคาต่ำสุด")}${modeOption("each", rule.applicationMode, "ทุกรายการที่เข้าเงื่อนไข")}</select></label>
+          <div class="ap-calculation-help" data-topping-application>
+            <p><strong>1 รายการราคาต่ำสุด</strong><span>เลือกท็อปปิ้งที่เข้าเงื่อนไขซึ่งมีราคาต่ำที่สุดเพียง 1 ชิ้น แล้วให้ส่วนลดไม่เกินราคาของชิ้นนั้น เช่น มีกล้วย ฿10 จำนวน 2 ชิ้น ลด ฿5 ระบบลดรวม ฿5</span></p>
+            <p><strong>ทุกรายการที่เข้าเงื่อนไข</strong><span>ให้ส่วนลดกับท็อปปิ้งทุกชิ้นที่เลือกไว้ หากลดเป็นบาทจะคิดต่อชิ้น เช่น กล้วย 2 ชิ้น ลดชิ้นละ ฿5 ระบบลดรวม ฿10 หากลดเป็นเปอร์เซ็นต์จะคิดจากราคารวมของทุกชิ้นที่เข้าเงื่อนไข</span></p>
+          </div>
         </section>
         <section class="ap-discount-box"><h4>รูปแบบส่วนลด</h4><div class="ap-discount-grid"><div><span class="ap-label">เลือกวิธีลดราคา</span><div class="ap-segment"><label class="${rule.discountType === "fixed" ? "selected" : ""}"><input type="radio" name="discountType" value="fixed" ${rule.discountType === "fixed" ? "checked" : ""}>ลดเป็นบาท</label><label class="${rule.discountType === "percent" ? "selected" : ""}"><input type="radio" name="discountType" value="percent" ${rule.discountType === "percent" ? "checked" : ""}>ลดเป็นเปอร์เซ็นต์</label></div></div>
         <label class="ap-field"><span>จำนวนส่วนลด *</span><div class="ap-input-addon"><input type="number" name="discountValue" min="1" step="1" ${rule.discountType === "percent" ? 'max="100"' : ''} required value="${rule.discountValue}"><i data-discount-unit>${rule.discountType === "fixed" ? "บาท" : "%"}</i></div></label>
@@ -418,7 +422,10 @@ function installStyles() {
     .ap-mode-box{margin:18px 0;padding:16px;border:1px solid #d9c8a5;border-radius:10px;background:#fff}
     .ap-mode-box>h4{margin:0 0 14px;font-size:16px;font-weight:650}
     .ap-mode-box>[data-condition-panel],.ap-mode-box>[data-target-panel]{margin-top:8px}
-    .ap-mode-box>[hidden],.ap-field[hidden]{display:none!important}
+    .ap-mode-box>[hidden],.ap-field[hidden],.ap-calculation-help[hidden]{display:none!important}
+    .ap-calculation-help{display:grid;gap:8px;margin:-4px 0 14px;padding:12px;border:1px solid #e7d8b7;border-radius:11px;background:#fffaf0}
+    .ap-calculation-help p{display:grid;gap:2px;margin:0;color:#756549;font-size:11px;line-height:1.55}
+    .ap-calculation-help strong{color:#5b4520;font-size:12px}
     .ap-mode-box>.ap-menu-tools{border:1px solid #e5ded3;border-bottom:0;border-radius:8px 8px 0 0}
     .ap-mode-box>.ap-menu-list{padding:0 12px 12px;border:1px solid #e5ded3;border-top:0;border-radius:0 0 8px 8px}
     .ap-mode-note{padding:14px;border:1px solid #cfe0ce;border-radius:8px;background:#f0f7ef;color:#486247;font-size:13px}
